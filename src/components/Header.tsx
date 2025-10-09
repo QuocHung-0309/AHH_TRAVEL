@@ -76,8 +76,8 @@ export default function Header() {
 
   const navItems = [
     { label: 'Trang chủ', href: '/' },
+    { label: 'Tour', href: '/user/destination' },
     { label: 'Bài viết', href: '/user/blog' },
-    { label: 'Hành trình', href: '/user/map' },
   ];
 
   const isActive = (href: string) =>
@@ -89,7 +89,7 @@ export default function Header() {
     <header className="bg-[var(--background)]/90 shadow-sm relative w-full z-50">
       <div className="w-full max-w-screen-2xl mx-auto px-5 sm:px-6 lg:px-14 py-4 flex items-center gap-3">
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <Image src="/Logo.svg" alt="Logo" width={150} height={100} />
+          <Image src="/Logo.png" alt="Logo" width={150} height={150} />
         </Link>
         <nav className="hidden md:flex flex-1 justify-center space-x-6 text-base">
           {navItems.map((item) => (

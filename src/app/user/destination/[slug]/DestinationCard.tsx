@@ -6,6 +6,7 @@ interface Props {
   destination: Destination;
 }
 
+
 const DestinationCard = ({ destination }: Props) => {
   console.log("Destination object:", destination);
   const router = useRouter();

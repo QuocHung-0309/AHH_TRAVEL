@@ -7,7 +7,6 @@ import Image from 'next/image';
 import { FaChevronDown } from 'react-icons/fa';
 import { placeApi } from '@/lib/place/placeApi';
 import { checkinApi } from '@/lib/checkin/checkinApi';
-import { Ward } from '@/types/place';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 interface Place {
@@ -16,7 +15,7 @@ interface Place {
   slug: string;
   address: string;
   district: string;
-  ward: Ward;
+  ward: string;
   location: { type: 'Point'; coordinates: [number, number] };
   avgRating: number;
   totalRatings: number;
@@ -28,12 +27,12 @@ interface Checkin {
   placeId: {
     _id: string;
     name: string;
+    ward?: string;      
     district?: string; 
     address: string;
     avgRating?: number;
     totalRatings?: number;
     id?: string;
-    ward?: { _id: string; name: string };
   };
   count: number;
 }
@@ -69,7 +68,7 @@ export default function ScoreSection() {
     const countMap: Record<string, number> = {};
 
     checkins.forEach(c => {
-     const wardName = c.placeId?.ward?.name || "Chưa rõ phường";
+      const wardName = c.placeId?.ward || "Chưa rõ phường";
       countMap[wardName] = (countMap[wardName] || 0) + 1;
     });
 
@@ -121,7 +120,7 @@ export default function ScoreSection() {
           min: 0,
           max: maxValue < 10 ? 10 : maxValue, 
           ticks: {
-            stepSize: Math.ceil((maxValue < 10 ? 10 : maxValue) / 5), 
+            stepSize: Math.ceil((maxValue < 10 ? 10 : maxValue) / 5), // chia thành ~5 mốc
             padding: 4,
             color: '#94a3b8',
             font: { size: fontSize, weight: 500 as const },

@@ -1,13 +1,17 @@
 import { notFound } from 'next/navigation';
+import { dataBlogPosts } from '@/data/data';
 import { Metadata } from 'next';
 import BlogDetail from '../BlogDetail';
 import FeaturedBloggers from '../FeaturedBloggers';
 import RecentPosts from '../RecentPosts';
-import PopularPostsSection from '../../home/PopularPostsSection';
-import CommentSection from '../CommentSection';
+import PopularPostsSection from '../../home/TourList';
+import ReviewSection from '../ReviewSection';
+import { dataReviews } from '@/data/dataReviews';
+import CommentBox from '../CommentBox';
 import Image from 'next/image';
 import SocialShare from '../SocialShare';
 import { blogApi } from '@/lib/blog/blogApi';
+
 
 interface BlogDetailPageProps {
   params: Promise<{ slug: string }>;
@@ -76,7 +80,8 @@ export default async function BlogDetailPage({ params }: BlogDetailPageProps) {
               <BlogDetail post={post} />
               {/* Social share */}
               <SocialShare />
-              <CommentSection blogId={post._id} />
+              <ReviewSection reviews={dataReviews} />
+              <CommentBox />
             </div>
 
             {/* Sidebar */}

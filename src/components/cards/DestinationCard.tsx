@@ -1,63 +1,52 @@
+// DestinationCard.tsx
 'use client';
 
 import React from 'react';
 import Image from 'next/image';
-import { HiLocationMarker } from 'react-icons/hi';
-import { AiFillStar } from 'react-icons/ai';
 import Button from '@/components/ui/Button';
 
 type DestinationCardProps = {
   title: string;
-  location: string;
-  distance: string;
+  duration: string;
+  price: string;
   image: string;
-  rating?: number;      
-  totalRatings?: number; 
 };
 
-const DestinationCard: React.FC<DestinationCardProps> = ({
-  title,
-  location,
-  distance,
-  image,
-  rating,
-  totalRatings,
-}) => {
+const DestinationCard: React.FC<DestinationCardProps> = ({ title, duration, price, image }) => {
   return (
-    <div className="flex flex-col h-full rounded-2xl bg-white/10 backdrop-blur-[12px] shadow-lg hover:shadow-xl transition border-2 border-white overflow-hidden">
-      <div className="relative w-full aspect-[4/3] top-2">
-        <Image src={image} alt={title} fill className="object-cover rounded-3xl" />
+    <div className="group relative rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition">
+      <div className="relative w-full h-[400px]"> {/* cao hơn */}
+        <Image
+          src={image}
+          alt={title}
+          fill
+          className="object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
       </div>
-      <div className="flex flex-col justify-between flex-1 p-4 sm:p-5">
-        <div className="space-y-1.5 sm:space-y-2.5">
-          <p className="text-[11px] sm:text-xs text-[var(--gray-3)] flex items-center gap-1">
-            <HiLocationMarker className="w-4 h-4 text-blue-500" />
-            {location}
+
+      <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5 pointer-events-none">
+        <h3 className="text-base sm:text-lg font-extrabold uppercase text-orange-400 leading-tight">
+          {title}
+        </h3>
+
+        <div className="mt-1 sm:mt-2 space-y-1 text-white">
+          <p className="text-sm font-bold leading-tight">{duration}</p>
+          <p className="text-sm">
+            Giá: <span className="font-semibold">{price}</span>
           </p>
-          <h3 className="text-sm sm:text-lg font-bold text-[var(--black-1)]">
-            {title}
-          </h3>
-          <p className="text-[11px] sm:text-xs text-[var(--gray-3)]">{distance}</p>
-          {(rating !== undefined || totalRatings !== undefined) && (
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
-              {rating !== undefined && (
-                <span className="flex items-center gap-1">
-                  <AiFillStar className="text-yellow-400" />
-                  {rating.toFixed(1)}
-                </span>
-              )}
-              {totalRatings !== undefined && (
-                <span>({totalRatings} lượt)</span>
-              )}
-            </div>
-          )}
         </div>
+
         <div className="mt-3 sm:mt-4">
           <Button
-            variant="outline-primary"
-            className="bg-[var(--white)] text-[var(--primary)] text-xs sm:text-sm font-medium px-4 py-1.5 w-full justify-center rounded-none border-none"
+            className="
+              pointer-events-auto
+              rounded-full px-5 py-2
+              bg-white text-black font-bold text-xs
+              shadow-md hover:bg-white/90 transition
+            "
           >
-            XEM CHI TIẾT
+            ĐẶT NGAY
           </Button>
         </div>
       </div>

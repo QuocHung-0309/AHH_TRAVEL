@@ -10,11 +10,12 @@ import { FcGoogle } from "react-icons/fc";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import { authApi } from "@/lib/auth/authApi";
 import { AxiosError } from "axios";
+
 export default function RegisterPage() {
   const router = useRouter();
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState("");      // Tên
+  const [lastName, setLastName] = useState("");        // Họ và tên lót
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -30,17 +31,20 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // chặn double-submit
+
     const newErrors: { [key: string]: string } = {};
 
-    if (!firstName.trim()) newErrors.firstName = "Vui lòng nhập họ và tên lót";
-    if (!lastName.trim()) newErrors.lastName = "Vui lòng nhập tên";
+    // Sửa message đúng với field
+    if (!lastName.trim()) newErrors.lastName = "Vui lòng nhập họ và tên lót";
+    if (!firstName.trim()) newErrors.firstName = "Vui lòng nhập tên";
     if (!email.trim()) newErrors.email = "Vui lòng nhập email";
     if (!phone.trim()) newErrors.phone = "Vui lòng nhập số điện thoại";
     if (!password.trim()) newErrors.password = "Vui lòng nhập mật khẩu";
     if (password !== confirmPassword) newErrors.confirmPassword = "Mật khẩu xác nhận không khớp";
+    if (!agree) newErrors.agree = "Bạn cần đồng ý điều khoản";
 
     setErrors(newErrors);
-
     if (Object.keys(newErrors).length > 0) return;
 
     setLoading(true);
@@ -48,17 +52,19 @@ export default function RegisterPage() {
 
     try {
       await authApi.register(lastName, firstName, email, phone, password);
-
       await authApi.sendEmailOTP(email, "register");
-
-      // router.push("/auth/otp");
       router.push(`/auth/otp?email=${encodeURIComponent(email)}`);
     } catch (error: unknown) {
-  const err = error as AxiosError<{ message?: string }>;
-  setApiError(err.response?.data?.message || "Đăng ký thất bại");
-} finally {
+      const err = error as AxiosError<{ message?: string }>;
+      setApiError(err.response?.data?.message || "Đăng ký thất bại");
+    } finally {
       setLoading(false);
     }
+  };
+
+  // Handler tạm cho social (đổi sang route OAuth thực tế của bạn)
+  const startOAuth = (provider: "facebook" | "google" | "apple") => {
+    router.push(`/api/auth/${provider}`);
   };
 
   return (
@@ -81,9 +87,9 @@ export default function RegisterPage() {
               required
               className={errors.lastName ? "input-error" : ""}
             />
-              {errors.lastName && (
-                <p className="text-[var(--warning)] text-sm">{errors.lastName}</p>
-              )}
+            {errors.lastName && (
+              <p className="text-[var(--warning)] text-sm">{errors.lastName}</p>
+            )}
           </div>
           <div>
             <Input
@@ -91,8 +97,8 @@ export default function RegisterPage() {
               label="Tên"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-                required
-                className={errors.firstName ? "input-error" : ""}
+              required
+              className={errors.firstName ? "input-error" : ""}
             />
             {errors.firstName && (
               <p className="text-[var(--warning)] text-sm">{errors.firstName}</p>
@@ -107,8 +113,8 @@ export default function RegisterPage() {
               label="Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-                required
-                className={errors.email ? "input-error" : ""}
+              required
+              className={errors.email ? "input-error" : ""}
             />
             {errors.email && (
               <p className="text-[var(--warning)] text-sm">{errors.email}</p>
@@ -120,7 +126,7 @@ export default function RegisterPage() {
               label="Số điện thoại"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-                required
+              required
               className={errors.phone ? "input-error" : ""}
             />
             {errors.phone && (
@@ -140,6 +146,7 @@ export default function RegisterPage() {
           />
           <button
             type="button"
+            aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
             onClick={() => setShowPassword(!showPassword)}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
           >
@@ -161,6 +168,7 @@ export default function RegisterPage() {
           />
           <button
             type="button"
+            aria-label={showConfirmPassword ? "Ẩn xác thực mật khẩu" : "Hiện xác thực mật khẩu"}
             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
           >
@@ -184,14 +192,21 @@ export default function RegisterPage() {
             Tôi đã đọc các điều khoản và điều kiện
           </label>
         </div>
+        {errors.agree && (
+          <p className="text-[var(--warning)] text-sm">{errors.agree}</p>
+        )}
 
+        {/* Quan trọng: Button của bạn phải forward prop `type` xuống <button> */}
         <Button type="submit" variant="primary" className="w-full mt-4" disabled={loading}>
           {loading ? "Đang đăng ký..." : "ĐĂNG KÝ"}
         </Button>
       </form>
 
       <p className="text-sm mt-6 text-gray-600 text-center">
-        Bạn đã có tài khoản? <a href="/auth/login" className="text-[var(--primary)] hover:underline">Đăng nhập ngay</a>
+        Bạn đã có tài khoản?{" "}
+        <a href="/auth/login" className="text-[var(--primary)] hover:underline">
+          Đăng nhập ngay
+        </a>
       </p>
 
       <div className="flex items-center gap-2 pt-5">
@@ -201,9 +216,32 @@ export default function RegisterPage() {
       </div>
 
       <div className="flex justify-center mt-8 space-x-4">
-        <Button variant="outline-primary"><FaFacebookF className="text-[var(--primary)] text-xl" /></Button>
-        <Button variant="outline-primary"><FcGoogle className="text-xl" /></Button>
-        <Button variant="outline-primary"><FaApple className="text-black text-xl" /></Button>
+        <Button
+          variant="outline-primary"
+          type="button"
+          aria-label="Đăng ký bằng Facebook"
+          onClick={() => startOAuth("facebook")}
+        >
+          <FaFacebookF className="text-[var(--primary)] text-xl" />
+        </Button>
+
+        <Button
+          variant="outline-primary"
+          type="button"
+          aria-label="Đăng ký bằng Google"
+          onClick={() => startOAuth("google")}
+        >
+          <FcGoogle className="text-xl" />
+        </Button>
+
+        <Button
+          variant="outline-primary"
+          type="button"
+          aria-label="Đăng ký bằng Apple"
+          onClick={() => startOAuth("apple")}
+        >
+          <FaApple className="text-black text-xl" />
+        </Button>
       </div>
     </>
   );

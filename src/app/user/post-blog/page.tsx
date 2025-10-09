@@ -178,7 +178,7 @@ export default function PostBlogPage() {
       imageFiles.forEach((file) => formData.append("files", file));
       videoFiles.forEach((file) => formData.append("files", file));
 
-      const res = await blogApi.createBlog(formData);
+      const res = await blogApi.createBlog(formData, token);
       console.log("✅ Blog created:", res);
 
       alert("Đăng bài thành công!");

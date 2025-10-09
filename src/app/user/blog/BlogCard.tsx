@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { FaMapMarkerAlt } from 'react-icons/fa';
 import { FaRegCommentDots } from 'react-icons/fa6';
 import { Post } from '@/types/blog';
-import { blogCommentApi } from '@/lib/blogComment/blogCommentApi';
 
 interface BlogCardProps {
   post: Post;
@@ -22,23 +21,6 @@ function getExcerpt(content: Post["content"], maxLength = 150) {
 }
 
 const BlogCard: React.FC<BlogCardProps> = ({ post }) => {
-  const [totalComments, setTotalComments] = useState<number>(0);
-
-  useEffect(() => {
-    const fetchComments = async () => {
-      try {
-        const res = await blogCommentApi.getCommentsByBlog(post.id, { page: 1, limit: 1 });
-        setTotalComments(res.pagination.total); // lấy tổng số comment
-      } catch (error) {
-        console.error("Lỗi khi lấy tổng số bình luận:", error);
-      }
-    };
-
-    if (post?.id) {
-      fetchComments();
-    }
-  }, [post?.id]);
-  
   return (
     <div className="flex flex-col md:flex-row gap-6 bg-[var(--background)] p-4">
       <Link
@@ -89,7 +71,7 @@ const BlogCard: React.FC<BlogCardProps> = ({ post }) => {
             </div>
             <div className="flex items-center gap-1">
               <FaRegCommentDots className="text-[var(--gray-2)]" />
-              <span>Bình luận ({totalComments})</span>
+              <span>Bình luận ({post.totalComments})</span>
             </div>
           </div>
         </div>

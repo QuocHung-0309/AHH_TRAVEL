@@ -47,7 +47,7 @@ export default function SlideshowLayout({
               mb-6"
             >
               <Image
-                src="/logo.svg"
+                src="/logo.png"
                 alt="Sài Gòn Đi"
                 fill
                 className="object-contain"

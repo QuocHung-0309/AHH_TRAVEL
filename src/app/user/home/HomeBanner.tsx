@@ -3,7 +3,7 @@
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import "swiper/css/autoplay";
-import { Autoplay } from "swiper/modules"; 
+import { Autoplay } from "swiper/modules";
 import Button from "@/components/ui/Button";
  // nếu bạn dùng shadcn/ui
 

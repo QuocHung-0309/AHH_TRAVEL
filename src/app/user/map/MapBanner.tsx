@@ -1,22 +1,18 @@
 'use client';
 
-import { authApi } from "@/lib/auth/authApi";
 import React, { useEffect, useState } from "react";
 
 export default function MapBanner() {
   const [firstName, setFirstName] = useState("Bạn");
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    if (token) {
-      authApi.getProfile(token)
-        .then((res) => {
-          if (res.user?.fullName) {
-            const nameParts = res.user.fullName.trim().split(" ");
-            setFirstName(nameParts[0] || "Bạn");
-          }
-        })
-        .catch((err) => console.error("Profile API error:", err));
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      const user = JSON.parse(userData);
+      if (user.fullName) {
+        const nameParts = user.fullName.trim().split(" ");
+        setFirstName(nameParts[0] || "Bạn");
+      }
     }
   }, []);
   return (
@@ -33,6 +29,7 @@ export default function MapBanner() {
           Bắt đầu khám phá
         </button>
       </div>
+
       <div className="max-w-7xl mx-auto px-4 mt-12 sm:mt-16">
         <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-4 sm:gap-0 text-center sm:text-left">
           <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">

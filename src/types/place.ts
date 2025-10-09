@@ -1,20 +1,15 @@
 
-export interface Ward {
-  _id: string;
-  name: string;
-}
 export interface Place {
   _id: string;
   name: string;
   description: string;
   address: string;
-  ward: { _id: string; name: string };
   location: {
     type: string;
     coordinates: number[]; // [lng, lat]
   };
   images?: string[];
-  gallery?: string[]; 
+  gallery?: string[]; // 👈 thêm nếu có nhiều ảnh khác
   avgRating: number;
   totalRatings: number;
   totalLikes: number;
@@ -31,13 +26,13 @@ export interface Place {
   comments?: any[];
   lat: number;
   lng: number;
-  ward?: string;
 
-
-  distance?: string | number; 
+  // thêm field bổ sung
+  distance?: string | number; // tuỳ backend trả về dạng nào
   serviceCount?: number;
   reviewCount?: number;
 }
+
 
 export interface PlacesApiResponse {
   page: number;

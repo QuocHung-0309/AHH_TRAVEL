@@ -66,7 +66,7 @@ axiosInstance.interceptors.response.use(
         console.error("❌ Refresh token thất bại:", err);
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
-        window.location.href = "/auth/login";
+        window.location.href = "/login";
       } finally {
         isRefreshing = false;
       }

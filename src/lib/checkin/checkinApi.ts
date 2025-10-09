@@ -4,12 +4,15 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 interface CheckinPayload {
   note?: string;
+  location?: {
+    type: "Point";
+    coordinates: [number, number];
+  };
   device?: string;
   imgList?: string[];
 }
 
 export const checkinApi = {
-
   getUserCheckins: async () => {
     const token = localStorage.getItem("accessToken");
     const res = await axios.get(`${API_URL}/me/checkins`, {
@@ -20,24 +23,26 @@ export const checkinApi = {
     return res.data.data;
   },
 
-  createCheckin: async (placeId: string, data?: CheckinPayload) => {
+  createCheckin: async (placeId: string, data: CheckinPayload) => {
     const token = localStorage.getItem("accessToken");
-    const res = await axios.post(
-      `${API_URL}/places/${placeId}/checkin`,
-      {
-        ...(data?.note ? { note: data.note } : {}),
-        ...(data?.device ? { device: data.device } : { device: "Web App" }),
-        ...(data?.imgList ? { imgList: data.imgList } : {}),
+
+    const payload: CheckinPayload = {
+      note: data.note || "",
+      location: data.location || {
+        type: "Point",
+        coordinates: [106.7, 10.8], 
       },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-      }
-    );
+      device: data.device || "Unknown Device",
+      imgList: data.imgList || [],
+    };
+
+    const res = await axios.post(`${API_URL}/places/${placeId}/checkin`, payload, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
     return res.data.data;
   },
 };
-
-

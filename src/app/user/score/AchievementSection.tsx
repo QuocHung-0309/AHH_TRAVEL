@@ -6,7 +6,6 @@ import 'react-circular-progressbar/dist/styles.css';
 import Image from 'next/image';
 import { badgeApi } from '@/lib/badge/badgeApi';
 import { BadgeType } from '@/types/badge';
-import { authApi } from '@/lib/auth/authApi';
 
 type BadgeFrontend = BadgeType & {
   title: string;
@@ -20,22 +19,20 @@ export default function AchievementSection() {
   const [selected, setSelected] = useState<BadgeFrontend | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    if (token) {
-      authApi.getProfile(token)
-        .then((res) => {
-          if (res.user?.fullName) {
-            const nameParts = res.user.fullName.trim().split(" ");
-            setFirstName(nameParts[0] || "Bạn");
-          }
-        })
-        .catch((err) => console.error("Profile API error:", err));
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      if (user.fullName) {
+        const nameParts = user.fullName.trim().split(' ');
+        setFirstName(nameParts[0] || 'Bạn');
+      }
     }
 
     const fetchData = async () => {
       try {
         const badgesData: BadgeType[] = await badgeApi.getUserBadges();
 
+        // Map dữ liệu frontend
         const badgesFrontend: BadgeFrontend[] = badgesData.map((b) => {
           const current = b.userProgress?.currentPoints || 0;
           const required = b.pointsRequired || 0;
@@ -58,6 +55,7 @@ export default function AchievementSection() {
           };
         });
 
+        // 👉 Sort theo `pointsRequired` tăng dần (mốc thấp hơn hiển thị trước)
         const sortedBadges = [...badgesFrontend].sort(
           (a, b) => (a.pointsRequired || 0) - (b.pointsRequired || 0)
         );
@@ -65,7 +63,7 @@ export default function AchievementSection() {
         setBadges(sortedBadges);
         if (sortedBadges.length > 0) setSelected(sortedBadges[0]);
       } catch (err) {
-        console.error('Badge API error:', err);
+        console.error('API error:', err);
       }
     };
 
@@ -197,6 +195,7 @@ export default function AchievementSection() {
               ))}
             </div>
 
+            {/* Thanh tiến trình cho từng hoạt động */}
             <div className="space-y-4 sm:space-y-6">
               {[
                 { name: 'Check-in', color: '#76A7FE' },

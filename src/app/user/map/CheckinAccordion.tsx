@@ -114,11 +114,12 @@ const CheckinAccordion = () => {
                       : 'bg-[#F2F7FF]'
                   }`}
                 >
-                  <span> {item.group}</span>
+                  <span>{item.group}</span>
                   <span className="text-2xl">
                     {isOpen ? <FiMinus /> : <FiPlus />}
                   </span>
                 </button>
+
                 {isOpen && item.destinations.length > 0 && (
                   <div className="relative">
                     <div className="absolute inset-0 bg-[#F2F7FF]" />

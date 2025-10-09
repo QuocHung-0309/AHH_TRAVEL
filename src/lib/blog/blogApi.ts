@@ -82,17 +82,5 @@ export const blogApi = {
   getBlogsByAuthor: async (authorId: string) => {
     const res = await axiosInstance.get(`/blogs/author/${authorId}`);
     return res.data;
-  },
-
-  // Lấy danh sách blog theo địa điểm
-  getBlogsByPlaceId: async (placeId: string) => {
-    const res = await axios.get(`${API_URL}/blogs/place/${placeId}`);
-    return res.data;
-  },
-
-  // Lấy danh sách blog theo ward
-  getBlogsByWard: async (wardId: string) => {
-    const res = await axios.get(`${API_URL}/blogs/ward/${wardId}`);
-    return res.data;
-  },
+  }
 };
