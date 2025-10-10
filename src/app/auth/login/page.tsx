@@ -1,6 +1,6 @@
 // src/app/auth/login/page.tsx
 "use client";
-
+import { useSignin } from "#/hooks/auth-hook/useAuth";
 import React, { useState, useEffect } from "react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
@@ -9,8 +9,12 @@ import { FcGoogle } from "react-icons/fc";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import { authApi } from "@/lib/auth/authApi";
 import { AxiosError } from "axios";
+import { useAuthStore } from "#/stores/auth";
+
+
 
 export default function LoginPage() {
+  const { setToken, token, setUserId } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -27,34 +31,52 @@ export default function LoginPage() {
       setRememberMe(true);
     }
   }, []);
-
+  const { mutate: signinMutate, isPending, isError , error} = useSignin();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    try {
-      const res = await authApi.login(email, password);
-      console.log("Đăng nhập thành công:", res);
+    // try {
+      const input = { identifier: email, password: password };
+      signinMutate(input, {
+            onSuccess: (data) => {
+                console.log(data);
+                setToken(data.token);
+                //setCartId(data.cartId);
+                setUserId(data.userId);
+                //toast("Đăng nhập thành công!");
+                //router.replace("/home");
+                console.log("Đăng nhập thành công");
+            },
+            onError: () => {
+              console.log("Đăng nhập thất bại", error);
+                //toast.error("Đăng nhập thất bại!");
+            },
+        });
 
-      localStorage.setItem("accessToken", res.accessToken);
-      localStorage.setItem("refreshToken", res.refreshToken);
-      localStorage.setItem("userId", res.user.userId || res.user._id);
+      
+    //   const res = await authApi.login(input);
+    //   console.log("Đăng nhập thành công:", res);
 
-      if (rememberMe) {
-        localStorage.setItem("remember_email", email);
-        localStorage.setItem("remember_password", password);
-      } else {
-        localStorage.removeItem("remember_email");
-        localStorage.removeItem("remember_password");
-      }
+    //   localStorage.setItem("accessToken", res.accessToken);
+    //   localStorage.setItem("refreshToken", res.refreshToken);
+    //   localStorage.setItem("userId", res.user.userId || res.user._id);
 
-      window.location.href = "/";
-    } catch (error: unknown) {
-      const err = error as AxiosError<{ message?: string }>;
-      setApiError(err.response?.data?.message || "Đăng nhập thất bại");
-    } finally {
-      setLoading(false);
-    }
+    //   if (rememberMe) {
+    //     localStorage.setItem("remember_email", email);
+    //     localStorage.setItem("remember_password", password);
+    //   } else {
+    //     localStorage.removeItem("remember_email");
+    //     localStorage.removeItem("remember_password");
+    //   }
+
+    //   window.location.href = "/";
+    // } catch (error: unknown) {
+    //   const err = error as AxiosError<{ message?: string }>;
+    //   setApiError(err.response?.data?.message || "Đăng nhập thất bại");
+    // } finally {
+    //   setLoading(false);
+    // }
   };
 
   return (
@@ -66,11 +88,11 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-5 pt-5">
         <Input
-          type="email"
+          // type="email"
           label="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          required
+          // required
         />
         <div className="relative">
           <Input
@@ -104,7 +126,7 @@ export default function LoginPage() {
           </a>
         </div>
 
-        <Button type="submit" variant="primary" className="w-full mt-4" disabled={loading}>
+        <Button type="submit" variant="primary" className="w-full mt-4"  >
           {loading ? "Đang đăng nhập..." : "ĐĂNG NHẬP"}
         </Button>
       </form>
