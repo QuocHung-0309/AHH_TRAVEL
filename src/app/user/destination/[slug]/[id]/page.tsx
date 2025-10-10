@@ -1,605 +1,514 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import * as React from "react";
-import { motion } from "framer-motion";
+import Image from "next/image"
+import Link from "next/link"
+import { useParams, useRouter } from "next/navigation"
+import React, { useMemo } from "react"
+import { useGetTourById } from "#/hooks/tours-hook/useTourDetail"
+import { useGetTours } from "#/hooks/tours-hook/useTours"
+import CardHot from "@/components/cards/CardHot"
 
-/** =========================
- *  MOCK DATA (đổi sang fetch DB sau)
- *  ========================= */
-type Timeline = { timeLineId: number | string; title: string; description: string }; // HTML ok
-type Tour = {
-  id: number;
-  slug: string;
-  title: string;
-  destination?: string;
-  images?: string[];
-  image?: string;
-  price?: number;
-  priceBefore?: number;
-  priceAdult?: number;
-  priceChild?: number;
-  duration?: string;
-  departTime?: string;
-  startPoint?: string;
-  code?: string;
-  overview?: string;
-  descriptionHtml?: string;
-  startDate?: string;
-  endDate?: string;
-  avgStar?: number;
-  rating?: number;
-  timeline?: Timeline[];
-};
-
-const SAMPLE: Tour[] = [
-  {
-    id: 2,
-    slug: "tour-1-ngay-my-tho-ben-tre",
-    title: "TOUR 1 NGÀY MỸ THO - BẾN TRE",
-    destination: "Mỹ Tho – Bến Tre",
-    images: [
-      "/admin/assets/images/gallery-tours/img1.jpg",
-      "/admin/assets/images/gallery-tours/img2.jpg",
-      "/admin/assets/images/gallery-tours/img3.jpg",
-      "/admin/assets/images/gallery-tours/img4.jpg",
-      "/admin/assets/images/gallery-tours/img5.jpg",
-    ],
-    price: 480_000,
-    priceBefore: 650_000,
-    priceAdult: 480_000,
-    priceChild: 350_000,
-    duration: "1 ngày",
-    departTime: "07:30",
-    startPoint: "Trung tâm Q.1",
-    code: "MT-1D",
-    overview: "Khám phá sông nước miền Tây, đờn ca tài tử, trái cây miệt vườn.",
-    descriptionHtml:
-      "<p>Khám phá sông nước miền Tây, chèo xuồng ba lá, thưởng thức đờn ca tài tử…</p>",
-    startDate: "2025-10-20",
-    endDate: "2025-10-20",
-    avgStar: 4,
-    rating: 4.6,
-    timeline: [
-      {
-        timeLineId: 101,
-        title: "TP.HCM → Mỹ Tho",
-        description: "<ul><li>Khởi hành buổi sáng, tham quan chùa Vĩnh Tràng…</li></ul>",
-      },
-      {
-        timeLineId: 102,
-        title: "Bến Tre – về lại TP.HCM",
-        description: "<ul><li>Chèo xuồng, thưởng thức trái cây, mật ong…</li></ul>",
-      },
-    ],
-  },
-];
-
-/** =========================
- *  HELPERS
- *  ========================= */
-const money = (n?: number) => (typeof n === "number" ? n.toLocaleString("vi-VN") + " VND" : "Liên hệ");
-const pct = (b?: number, a?: number) => (b && a && b > a ? Math.round(((b - a) / b) * 100) : undefined);
-const fmtDate = (d?: string) => {
-  if (!d) return "";
-  try {
-    return new Date(d).toLocaleDateString("vi-VN");
-  } catch {
-    return d;
+/* =================== helpers =================== */
+const toNum = (v?: number | string) => {
+  if (typeof v === "number") return v
+  if (typeof v === "string") {
+    const n = Number(v.replace(/[^\d]/g, ""))
+    return Number.isNaN(n) ? undefined : n
   }
-};
+}
+const vnd = (n?: number) =>
+  typeof n === "number"
+    ? new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+        maximumFractionDigits: 0,
+      })
+        .format(n)
+        .replace(/\s?₫$/, "VNĐ")
+    : "—"
 
-/** =========================
- *  PAGE
- *  ========================= */
-type PageProps = { params: { slug: string; id: string } };
+const extractDays = (time?: string) => {
+  if (!time) return 1
+  const m = time.match(/(\d+)\s*ngày/i)
+  return m ? Math.max(1, Number.parseInt(m[1], 10)) : 1
+}
 
-export default function TourDetail({ params }: PageProps) {
-  const { slug, id } = params;
-  const tour = SAMPLE.find((d) => d.slug === slug && String(d.id) === id);
-  if (!tour) return <div className="p-8">Không tìm thấy tour.</div>;
+/* =================== Accordion “Lịch trình” =================== */
+const Chevron: React.FC<{ open?: boolean }> = ({ open }) => (
+  <svg
+    className={`h-5 w-5 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+  </svg>
+)
 
-  const imgs = tour.images?.length ? tour.images : [tour.image ?? "/placeholder.jpg"];
-  const discount = pct(tour.priceBefore, tour.price);
-  const canReview = true; // tương đương $checkDisplay
+type DayItem = { title: string; content?: React.ReactNode }
+
+function DaysAccordion({ items }: { items: DayItem[] }) {
+  const [open, setOpen] = React.useState(0)
+  return (
+    <div className="mt-6 space-y-3">
+      {items.map((it, idx) => {
+        const isOpen = open === idx
+        return (
+          <div
+            key={idx}
+            className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md"
+          >
+            <button
+              type="button"
+              onClick={() => setOpen(isOpen ? -1 : idx)}
+              className={`flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors ${
+                isOpen ? "bg-[var(--brand-primary,#16a34a)]/5" : "hover:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-xl font-bold transition-colors ${
+                    isOpen
+                      ? "bg-[var(--brand-primary,#16a34a)] text-white"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {idx + 1}
+                </div>
+                <span className="font-semibold text-slate-900">{it.title}</span>
+              </div>
+              <span className={`${isOpen ? "text-[var(--brand-primary,#16a34a)]" : "text-slate-500"}`}>
+                <Chevron open={isOpen} />
+              </span>
+            </button>
+
+            <div
+              className={`grid transition-all duration-300 ease-in-out ${
+                isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+              }`}
+            >
+              <div className="min-h-0 overflow-hidden">
+                <div className="border-t border-slate-200 bg-slate-50 px-5 py-4 text-[15px] leading-relaxed text-slate-800">
+                  {it.content ?? (
+                    <p className="text-slate-500">
+                      Lịch trình chi tiết sẽ được cập nhật. Vui lòng liên hệ tư vấn để nhận chương trình cụ thể.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/* =================== Page =================== */
+export default function TourDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+
+  const { data: tour, isLoading, isError } = useGetTourById(id)
+  const { data: recRaw } = useGetTours()
+
+  const priceAdult = toNum(tour?.priceAdult)
+  const priceChild = toNum(tour?.priceChild)
+
+  const gallery = useMemo(() => {
+    const imgs = [
+      ...(tour?.images ?? []),
+      ...(tour?.image ? [tour.image] : []),
+      ...(tour?.cover ? [tour.cover] : []),
+    ].filter(Boolean) as string[]
+    if (!imgs.length) return ["/hot1.jpg", "/hot1.jpg", "/hot1.jpg", "/hot1.jpg", "/hot1.jpg"]
+    const uniq = [...new Set(imgs)]
+    while (uniq.length < 5) uniq.push(uniq[uniq.length - 1])
+    return uniq.slice(0, 5)
+  }, [tour])
+
+  const related = useMemo(() => {
+    const list: any[] = Array.isArray((recRaw as any)?.data)
+      ? (recRaw as any).data
+      : Array.isArray(recRaw)
+      ? (recRaw as any[])
+      : []
+    return list.filter((t) => t._id !== tour?._id).slice(0, 3)
+  }, [recRaw, tour])
+
+  const days = extractDays(tour?.time)
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-[var(--brand-primary,#16a34a)]"></div>
+          <p className="mt-4 text-sm text-slate-600">Đang tải thông tin tour...</p>
+        </div>
+      </div>
+    )
+  }
+  if (isError || !tour) return <div className="mx-auto max-w-6xl px-5 py-12">Không tải được chi tiết tour.</div>
 
   return (
-    <main className="mx-auto max-w-[1200px]">
-      {/* Banner gradient + breadcrumb */}
-      <motion.section
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="relative overflow-hidden"
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-emerald-50/80 via-white to-white" />
-        <div className="relative mx-auto max-w-[1200px] px-4 pt-8 pb-6">
-          <nav className="mb-3 text-sm text-slate-500">
-            <Crumb href="/">Trang chủ</Crumb> / <Crumb href="/user/destination">Tour</Crumb> /{" "}
-            <span className="text-slate-800 font-medium">{tour.title}</span>
+    <div className="min-h-screen bg-white">
+      {/* Top bar (breadcrumb + destination) */}
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-7xl px-5 py-6">
+          <nav className="mb-3 text-sm">
+            <ol className="flex items-center gap-2 text-slate-500">
+              <li>
+                <Link href="/" className="transition-colors hover:text-[var(--brand-primary,#16a34a)]">
+                  Trang chủ
+                </Link>
+              </li>
+              <li aria-hidden>
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </li>
+              <li className="font-medium text-slate-900">{tour.title ?? "Chi tiết tour"}</li>
+            </ol>
           </nav>
 
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h1 className="text-[30px] md:text-[34px] font-extrabold tracking-tight text-slate-900">
-                {tour.title}
-              </h1>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Badge>Mã tour: {tour.code ?? `T-${id}`}</Badge>
-                {tour.duration && <Badge>{tour.duration}</Badge>}
-                {tour.departTime && <Badge>Đón: {tour.departTime}</Badge>}
-                {tour.startPoint && <Badge>Điểm đón: {tour.startPoint}</Badge>}
-              </div>
-              <div className="mt-3 flex items-center gap-2 text-slate-600">
-                <i className="far fa-map-marker-alt" aria-hidden />
-                <span className="text-[15px]">{tour.destination ?? "—"}</span>
-                <span className="mx-2 text-slate-300">•</span>
-                <Stars count={tour.avgStar ?? 0} />
-              </div>
-            </div>
-
-            {/* Giá tóm tắt */}
-            <div className="md:text-right">
-              <div className="mt-2 inline-flex items-end gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <span className="text-xl font-bold text-emerald-700">{money(tour.price)}</span>
-                {tour.priceBefore && <span className="text-sm text-slate-400 line-through">{money(tour.priceBefore)}</span>}
-                {discount && (
-                  <span className="ml-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                    -{discount}%
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.section>
-
-      {/* Gallery mosaic */}
-      <section className="px-4">
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="grid gap-3">
-            <FadeImg src={imgs[0]} alt={tour.title} className="aspect-[16/10]" />
-            <FadeImg src={imgs[1]} alt={tour.title} className="aspect-[16/10]" />
-          </div>
-          <div className="hidden md:block">
-            <FadeImg src={imgs[2]} alt={tour.title} className="h-full min-h-[300px]" />
-          </div>
-          <div className="grid gap-3">
-            <FadeImg src={imgs[3]} alt={tour.title} className="aspect-[16/10]" />
-            <FadeImg src={imgs[4]} alt={tour.title} className="aspect-[16/10]" />
+          <div className="flex items-center gap-2 text-[var(--brand-primary,#16a34a)]">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="text-lg font-semibold">{tour.destination ?? "Điểm đến"}</span>
           </div>
         </div>
       </section>
 
-      {/* Main */}
-      <section className="pb-24 pt-10 px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          {/* LEFT */}
-          <div className="lg:col-span-8 space-y-8">
-            {/* Khám phá tour */}
-            <Card>
-              <h2 className="section-title">Khám phá tour</h2>
-              <div
-                className="prose max-w-none prose-p:leading-relaxed"
-                dangerouslySetInnerHTML={{
-                  __html: tour.descriptionHtml ?? tour.overview ?? "",
-                }}
+      {/* Gallery */}
+      <section className="py-8">
+        <div className="mx-auto max-w-7xl px-5">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="group relative aspect-[4/3] overflow-hidden rounded-3xl md:col-span-2 md:row-span-2 md:aspect-auto">
+              <Image
+                src={gallery[0] || "/placeholder.svg"}
+                alt={`${tour.title} #1`}
+                fill
+                className="object-cover transition-transform duration-700 group-hover:scale-105"
               />
-              <div className="mt-8 grid gap-8 md:grid-cols-2">
-                <div>
-                  <h5 className="sub-title">Bao gồm</h5>
-                  <ListCheck
-                    items={[
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
+            </div>
+
+            {gallery.slice(1, 5).map((img, idx) => (
+              <div key={idx} className="group relative aspect-[4/3] overflow-hidden rounded-2xl">
+                <Image
+                  src={img || "/placeholder.svg"}
+                  alt={`${tour.title} #${idx + 2}`}
+                  fill
+                  className="object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Title row */}
+      <section className="py-6">
+        <div className="mx-auto max-w-7xl px-5">
+          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-start">
+            <div className="flex-1">
+              <h1 className="mb-3 text-3xl font-bold leading-tight text-slate-900 md:text-4xl">
+                {tour.title ?? "Tour"}
+              </h1>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <svg key={i} className="h-5 w-5 fill-amber-400 text-amber-400" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                  <span className="ml-2 text-sm font-medium text-slate-500">(128 đánh giá)</span>
+                </div>
+                <span className="h-4 w-px bg-slate-200" />
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <svg className="h-5 w-5 text-[var(--brand-primary,#16a34a)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="font-medium">{tour.time ?? "—"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons (brand colors, không gradient) */}
+            <div className="flex items-center gap-3">
+              <button className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-800 shadow-sm transition-colors hover:border-[var(--brand-primary,#16a34a)] hover:text-[var(--brand-primary,#16a34a)]">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                <span>Chia sẻ</span>
+              </button>
+              <button className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 font-medium text-slate-800 shadow-sm transition-colors hover:border-[var(--brand-accent,#f97316)] hover:text-[var(--brand-accent,#f97316)]">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+                <span>Yêu thích</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Content */}
+      <section className="pb-16">
+        <div className="mx-auto max-w-7xl px-5">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
+            {/* left */}
+            <div className="space-y-8">
+              {/* Description */}
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+                <h3 className="mb-4 flex items-center gap-3 text-2xl font-bold text-slate-900">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-primary,#16a34a)]/10 text-[var(--brand-primary,#16a34a)]">
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  Khám phá Tours
+                </h3>
+                <div className="prose prose-slate max-w-none text-[15px] leading-relaxed">
+                  {tour.description ? (
+                    <div dangerouslySetInnerHTML={{ __html: tour.description }} />
+                  ) : (
+                    <p className="text-slate-500">Đang cập nhật mô tả chi tiết cho tour này.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Includes/Excludes */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <h5 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
+                    <svg className="h-6 w-6 text-[var(--brand-primary,#16a34a)]" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Bao gồm
+                  </h5>
+                  <ul className="space-y-2 text-[15px] text-slate-800">
+                    {[
                       "Dịch vụ đón và trả khách",
                       "1 bữa ăn mỗi ngày",
                       "Bữa tối trên du thuyền & sự kiện âm nhạc",
-                      "Tham quan 7 địa điểm nổi bật",
-                      "Nước đóng chai trên xe buýt",
-                      "Xe buýt du lịch hạng sang",
-                    ]}
-                  />
+                      "Tham quan các điểm nổi bật trong chương trình",
+                      "Nước đóng chai trên xe",
+                      "Xe du lịch hạng sang",
+                    ].map((txt) => (
+                      <li key={txt} className="flex items-start gap-2">
+                        <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-[var(--brand-primary,#16a34a)]" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        <span>{txt}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <div>
-                  <h5 className="sub-title">Không bao gồm</h5>
-                  <ListTimes
-                    items={[
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <h5 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
+                    <svg className="h-6 w-6 text-slate-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    Không bao gồm
+                  </h5>
+                  <ul className="space-y-2 text-[15px] text-slate-600">
+                    {[
                       "Tiền boa",
-                      "Đón và trả khách tại khách sạn",
+                      "Đón/trả khách tại khách sạn",
                       "Bữa trưa, đồ ăn & đồ uống",
-                      "Nâng cấp tùy chọn",
-                      "Dịch vụ bổ sung",
-                      "Bảo hiểm",
-                    ]}
-                  />
+                      "Nâng cấp dịch vụ theo yêu cầu",
+                      "Dịch vụ bổ sung, bảo hiểm",
+                    ].map((txt) => (
+                      <li key={txt} className="flex items-start gap-2">
+                        <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        <span>{txt}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
-            </Card>
 
-            {/* Lịch trình */}
-            <Card>
-              <h2 className="section-title">Lịch trình</h2>
-              <div className="mt-4 space-y-3">
-                {(tour.timeline ?? []).map((tl, idx) => (
-                  <DetailsRow key={tl.timeLineId} title={`Ngày ${idx + 1} – ${tl.title}`}>
-                    <div
-                      className="prose max-w-none prose-li:leading-relaxed prose-p:leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: tl.description }}
-                    />
-                  </DetailsRow>
-                ))}
+              {/* Itinerary */}
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+                <h3 className="mb-2 flex items-center gap-3 text-2xl font-bold text-slate-900">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-accent,#f97316)]/10 text-[var(--brand-accent,#f97316)]">
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </div>
+                  Lịch trình chi tiết
+                </h3>
+                <p className="mb-4 text-sm text-slate-600">Khám phá từng ngày trong hành trình của bạn</p>
+                <DaysAccordion
+                  items={Array.from({ length: days }).map((_, i) => ({
+                    title: `Ngày ${i + 1} – ${tour.destination ?? tour.title ?? "Hành trình"}`,
+                    content: (
+                      <ul className="space-y-2">
+                        {["Đón khách • Check-in • Khởi hành", "Tham quan điểm chính trong ngày", "Ăn trưa/ăn tối tại nhà hàng địa phương", "Về khách sạn nghỉ đêm"].map(
+                          (txt) => (
+                            <li key={txt} className="flex items-start gap-2">
+                              <svg className="mt-1 h-5 w-5 flex-shrink-0 text-[var(--brand-primary,#16a34a)]" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                              <span>{txt}</span>
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    ),
+                  }))}
+                />
               </div>
-            </Card>
+            </div>
 
-            {/* Reviews */}
-            <Card id="partials_reviews">
-              <h2 className="section-title">Đánh giá</h2>
-              <p className="text-slate-600 mt-1">*(Tải danh sách đánh giá từ API/DB…)</p>
-            </Card>
-
-            {/* Thêm đánh giá */}
-            {canReview && (
-              <Card>
-                <h2 className="section-title">Thêm đánh giá</h2>
-                <form action="/api/reviews" method="POST" className="mt-4 space-y-4">
-                  <div>
-                    <label className="label">Đánh giá</label>
-                    <StarPicker name="stars" defaultValue={5} />
-                  </div>
-                  <div>
-                    <label htmlFor="message" className="label">
-                      Nội dung
-                    </label>
-                    <textarea id="message" name="message" rows={5} required className="input textarea" placeholder="Chia sẻ trải nghiệm của bạn…" />
-                  </div>
-                  <input type="hidden" name="tourId" value={tour.id} />
-                  <div className="flex gap-3">
-                    <Button type="submit" variant="primary">Gửi đánh giá</Button>
-                    <Button type="reset" variant="soft">Xoá nội dung</Button>
-                  </div>
-                </form>
-              </Card>
-            )}
-          </div>
-
-          {/* RIGHT / Sidebar */}
-          <aside className="lg:col-span-4">
-            <div className="lg:sticky lg:top-20 space-y-8">
-              {/* Booking */}
-              <Card className="p-0 overflow-hidden">
-                <div className="bg-gradient-to-tr from-emerald-500 to-emerald-600 p-5 text-white relative">
-                  <h5 className="text-base font-semibold">Đặt tour ngay</h5>
-                  <div className="mt-3 flex items-end gap-2">
-                    <span className="text-3xl font-extrabold drop-shadow-sm">{money(tour.price)}</span>
-                    {tour.priceBefore && (
-                      <span className="text-sm/none opacity-90 line-through">{money(tour.priceBefore)}</span>
-                    )}
-                    {discount && (
-                      <span className="ml-auto rounded-md bg-white/20 px-2 py-0.5 text-xs font-semibold">
-                        -{discount}%
-                      </span>
-                    )}
-                  </div>
-                  <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/20 blur-2xl" />
+            {/* Right: Booking */}
+            <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md">
+                <div className="bg-[var(--brand-primary,#16a34a)] p-6 text-white">
+                  <div className="mb-1 text-sm/5 opacity-90">Giá chỉ từ</div>
+                  <div className="text-3xl font-bold">{vnd(priceAdult)}</div>
+                  <div className="mt-0.5 text-xs/5 opacity-90">/ người lớn</div>
                 </div>
 
-                <div className="p-5">
-                  <form action={`/api/booking?id=${tour.id}`} method="POST" className="space-y-4">
-                    <Field label="Ngày bắt đầu">
-                      <input type="text" value={fmtDate(tour.startDate)} name="startdate" disabled className="input disabled:opacity-100" />
-                    </Field>
-                    <Field label="Ngày kết thúc">
-                      <input type="text" value={fmtDate(tour.endDate)} name="enddate" disabled className="input disabled:opacity-100" />
-                    </Field>
-                    <Field label="Thời gian">
-                      <div className="text-[15px]">{tour.duration ?? "—"}</div>
-                      <input type="hidden" name="time" value={tour.duration ?? ""} />
-                    </Field>
+                <div className="p-6">
+                  <div className="mb-6 space-y-4">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Ngày bắt đầu</label>
+                      <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                        <svg className="h-5 w-5 text-[var(--brand-primary,#16a34a)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-sm font-medium text-slate-900">
+                          {tour.startDate ? new Date(tour.startDate).toLocaleDateString("vi-VN") : "Chọn ngày"}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Ngày kết thúc</label>
+                      <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                        <svg className="h-5 w-5 text-[var(--brand-accent,#f97316)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        <span className="text-sm font-medium text-slate-900">
+                          {tour.endDate ? new Date(tour.endDate).toLocaleDateString("vi-VN") : "Chọn ngày"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <svg className="h-5 w-5 text-[var(--brand-primary,#16a34a)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="font-medium text-slate-800">{tour.time ?? "—"}</span>
+                      </div>
+                    </div>
+                  </div>
 
-                    <div className="my-2 border-t" />
-                    <h6 className="text-sm font-semibold">Vé</h6>
-                    <ul className="mt-2 space-y-1 text-[15px]">
-                      <li className="flex justify-between">
-                        <span>Người lớn</span>
-                        <span className="font-medium">{money(tour.priceAdult ?? tour.price)}</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span>Trẻ em</span>
-                        <span className="font-medium">{money(tour.priceChild)}</span>
-                      </li>
-                    </ul>
+                  {typeof priceChild === "number" && (
+                    <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-600">Giá trẻ em</span>
+                        <span className="text-lg font-bold text-slate-900">{vnd(priceChild)}</span>
+                      </div>
+                    </div>
+                  )}
 
-                    <Button type="submit" variant="primary" full className="mt-3">Đặt ngay</Button>
-                    <Button type="button" variant="soft" full>Gọi tư vấn</Button>
+                  <button
+                    onClick={() =>
+                      router.push(`/user/checkout?id=${encodeURIComponent(String(tour._id ?? id))}&adults=1&children=0`)
+                    }
+                    className="group relative w-full overflow-hidden rounded-2xl bg-[var(--brand-accent,#f97316)] px-6 py-4 text-lg font-bold text-white shadow-md transition hover:brightness-[1.05] active:scale-[0.99]"
+                  >
+                    <span className="relative z-10 flex items-center justify-center gap-2">
+                      Đặt ngay
+                      <svg className="h-5 w-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </span>
+                    <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-500 group-hover:translate-x-full" />
+                  </button>
 
-                    <ul className="mt-4 divide-y text-xs text-slate-600">
-                      <li className="py-2">• Giá minh bạch</li>
-                      <li className="py-2">• Hỗ trợ 24/7</li>
-                      <li className="py-2">• Miễn phí đổi ngày*</li>
-                      <li className="py-2">• Thanh toán an toàn</li>
-                    </ul>
-                  </form>
+                  <p className="mt-4 text-center text-xs text-slate-500">🎉 Đặt ngay để nhận ưu đãi tốt nhất!</p>
                 </div>
-              </Card>
+              </div>
 
-              {/* Contact */}
-              <Card>
-                <h5 className="sub-title mb-3">Cần trợ giúp?</h5>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <i className="far fa-envelope" aria-hidden />
-                    <a href="mailto:minhdien.dev@gmail.com" className="link">minhdien.dev@gmail.com</a>
+              {/* Help Card */}
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand-primary,#16a34a)]/10 text-[var(--brand-primary,#16a34a)]">
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-slate-900">Cần trợ giúp?</h5>
+                    <p className="text-sm text-slate-600">Chúng tôi luôn sẵn sàng hỗ trợ</p>
+                  </div>
+                </div>
+                <ul className="space-y-3 text-sm">
+                  <li className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 transition-colors hover:bg-slate-100">
+                    <svg className="h-5 w-5 text-[var(--brand-primary,#16a34a)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <a href="mailto:quochung.dev@gmail.com" className="font-medium text-slate-800 hover:text-[var(--brand-primary,#16a34a)]">
+                      quochung.dev@gmail.com
+                    </a>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <i className="far fa-phone-volume" aria-hidden />
-                    <a href="tel:+00012345688" className="link">+000 (123) 456 88</a>
+                  <li className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 transition-colors hover:bg-slate-100">
+                    <svg className="h-5 w-5 text-[var(--brand-accent,#f97316)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    <span className="font-medium text-slate-800">+000 (123) 456 88</span>
                   </li>
                 </ul>
-              </Card>
+              </div>
+            </aside>
+          </div>
 
-              {/* Recommendations (demo) */}
-              <Card>
-                <h6 className="sub-title mb-3">Tours tương tự</h6>
-                <RecCard
-                  href={`/user/destination/city-tour-sai-gon-nua-ngay/5`}
-                  image="/admin/assets/images/gallery-tours/city1.jpg"
-                  destination="TP. Hồ Chí Minh"
-                  rating={4.7}
-                  title="City Tour Sài Gòn nửa ngày (PM)"
-                />
-              </Card>
-            </div>
-          </aside>
+          {/* Related */}
+          {related.length > 0 && (
+            <section className="mt-16">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-primary,#16a34a)]/10 text-[var(--brand-primary,#16a34a)]">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                  </svg>
+                </div>
+                <div>
+                  <h6 className="text-2xl font-bold text-slate-900">Tours tương tự</h6>
+                  <p className="text-sm text-slate-600">Khám phá thêm các tour hấp dẫn khác</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {related.map((t: any) => (
+                  <CardHot
+                    key={t._id ?? t.id ?? t.title}
+                    title={t.title}
+                    image={t.image ?? t.cover ?? "/hot1.jpg"}
+                    originalPrice={toNum(t.priceAdult)}
+                    salePrice={t.salePrice}
+                    discountPercent={t.discountPercent}
+                    discountAmount={t.discountAmount}
+                    href={`/user/destination/${t.destinationSlug ?? (t.title || "").toLowerCase().replace(/\s+/g, "-")}/${t._id ?? t.id ?? ""}`}
+                    stats={[
+                      { value: `Còn ${t.quantity ?? "—"} chỗ` },
+                      { value: t.time ?? "—" },
+                      { value: t.destination ?? "" },
+                    ]}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </section>
-
-      {/* Newsletter + Footer */}
-      <section className="bg-slate-50 py-12">
-        <div className="mx-auto max-w-[1200px] px-4">
-          <Card>
-            <h5 className="text-base font-semibold">Nhận tin mới</h5>
-            <form className="mt-3 flex gap-2">
-              <input className="input flex-1" placeholder="Email của bạn" />
-              <Button variant="primary">Đăng ký</Button>
-            </form>
-          </Card>
-        </div>
-      </section>
-      <footer className="border-t">
-        <div className="mx-auto max-w-[1200px] px-4 py-6 text-sm text-slate-600">
-          © {new Date().getFullYear()} Bon Phương Tours
-        </div>
-      </footer>
-    </main>
-  );
-}
-
-/** =========================
- *  UI PRIMITIVES
- *  ========================= */
-function Crumb({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded px-1"
-    >
-      {children}
-    </Link>
-  );
-}
-
-function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium shadow-sm">
-      {children}
-    </span>
-  );
-}
-
-function Stars({ count = 0 }: { count?: number }) {
-  const n = Math.max(0, Math.min(5, count));
-  return (
-    <span className="inline-flex items-center gap-1">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <i key={i} className={`fa${i < n ? "s" : "r"} fa-star text-amber-500`} aria-hidden />
-      ))}
-      <span className="sr-only">{n} trên 5 sao</span>
-    </span>
-  );
-}
-
-function Card({ children, className = "", id }: { children: React.ReactNode; className?: string; id?: string }) {
-  return (
-    <motion.section
-      id={id}
-      initial={{ opacity: 0, y: 12 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      whileHover={{ y: -2 }}
-      className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_-15px_rgba(2,6,23,0.18)] ${className}`}
-    >
-      {children}
-    </motion.section>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="label">{label}</span>
-      <div className="mt-1">{children}</div>
-    </label>
-  );
-}
-
-function FadeImg({ src, alt, className = "" }: { src?: string; alt?: string; className?: string }) {
-  const s = src ?? "/placeholder.jpg";
-  return (
-    <motion.figure
-      initial={{ opacity: 0, scale: 0.98 }}
-      whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ once: true, amount: 0.3 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
-      className={`group relative overflow-hidden rounded-2xl border border-slate-200 bg-white ${className}`}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={s} alt={alt ?? "image"} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
-    </motion.figure>
-  );
-}
-
-function Dot({ color = "bg-emerald-100", dot = "bg-emerald-500" }: { color?: string; dot?: string }) {
-  return (
-    <span className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full ${color}`}>
-      <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
-    </span>
-  );
-}
-
-function ListCheck({ items }: { items: string[] }) {
-  return (
-    <ul className="mt-3 space-y-2 text-[15px] text-slate-700">
-      {items.map((t, i) => (
-        <li key={i} className="flex items-start gap-2">
-          <Dot />
-          <span className="leading-relaxed">{t}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function ListTimes({ items }: { items: string[] }) {
-  return (
-    <ul className="mt-3 space-y-2 text-[15px] text-slate-700">
-      {items.map((t, i) => (
-        <li key={i} className="flex items-start gap-2">
-          <Dot color="bg-rose-100" dot="bg-rose-500" />
-          <span className="leading-relaxed">{t}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function DetailsRow({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <motion.details
-      initial={false}
-      animate={{ backgroundColor: open ? "rgba(248,250,252,0.6)" : "white" }}
-      transition={{ duration: 0.25 }}
-      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="group rounded-2xl border border-slate-200 p-4"
-    >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-        <span className="font-medium text-slate-900">{title}</span>
-        <motion.span
-          animate={{ rotate: open ? 180 : 0 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-white text-slate-600 shadow-sm"
-        >
-          <i className="far fa-chevron-down text-xs" />
-        </motion.span>
-      </summary>
-      <motion.div
-        initial={false}
-        animate={{ height: open ? "auto" : 0, marginTop: open ? 12 : 0, opacity: open ? 1 : 0 }}
-        transition={{ duration: 0.28, ease: "easeOut" }}
-        className="overflow-hidden"
-      >
-        {children}
-      </motion.div>
-    </motion.details>
-  );
-}
-
-function StarPicker({ name, defaultValue = 5 }: { name: string; defaultValue?: number }) {
-  const [val, setVal] = React.useState(defaultValue);
-  return (
-    <div className="inline-flex items-center gap-1">
-      {Array.from({ length: 5 }).map((_, i) => {
-        const v = i + 1;
-        const active = v <= val;
-        return (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setVal(v)}
-            aria-label={`Đánh giá ${v}`}
-            className={`text-2xl transition ${active ? "text-amber-500" : "text-slate-300 hover:text-amber-400"} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded`}
-          >
-            <i className={`fa${active ? "s" : "r"} fa-star`} />
-          </button>
-        );
-      })}
-      <input type="hidden" name={name} value={val} />
     </div>
-  );
+  )
 }
-
-function RecCard(props: { href: string; image: string; destination: string; rating?: number; title: string }) {
-  const { href, image, destination, rating, title } = props;
-  return (
-    <Link
-      href={href}
-      className="group block overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={image} alt="" className="h-[140px] w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
-      <div className="p-3">
-        <div className="flex items-center justify-between text-sm text-slate-600">
-          <span className="inline-flex items-center gap-1">
-            <i className="far fa-map-marker-alt" aria-hidden />
-            {destination}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <i className="fas fa-star text-amber-500" aria-hidden />
-            ({rating?.toFixed(1) ?? "—"})
-          </span>
-        </div>
-        <h6 className="mt-1 font-semibold text-slate-900">{title}</h6>
-      </div>
-    </Link>
-  );
-}
-
-function Button({
-  variant = "primary",
-  full,
-  className = "",
-  ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "soft" | "ghost"; full?: boolean }) {
-  const base =
-    "relative inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold transition outline-none";
-  const styles: Record<string, string> = {
-    primary:
-      "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-200/50 hover:from-emerald-600 hover:to-emerald-700 focus-visible:ring-2 ring-emerald-400",
-    soft: "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-2 ring-emerald-400",
-    ghost: "text-emerald-700 hover:bg-emerald-50 focus-visible:ring-2 ring-emerald-400",
-  };
-  return (
-    <motion.button
-      whileTap={{ scale: 0.98 }}
-      whileHover={{ y: -1 }}
-      className={`${base} ${styles[variant]} ${full ? "w-full" : ""} ${className}`}
-      {...rest}
-    />
-  );
-}
-
-/** =========================
- *  DESIGN TOKENS (utility)
- *  ========================= */
-const styles = {
-  input:
-    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[15px] text-slate-800 placeholder:text-slate-400 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400",
-  textarea:
-    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[15px] text-slate-800 placeholder:text-slate-400 shadow-sm min-h-[120px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400",
-  label: "block text-[13px] font-medium text-slate-600",
-  sectionTitle: "text-xl font-semibold text-slate-900",
-  subTitle: "text-sm font-semibold text-slate-900",
-  link: "underline underline-offset-2 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded",
-};
-
-// expose class helpers
-const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} className={styles.input + " " + (props.className ?? "")} />;

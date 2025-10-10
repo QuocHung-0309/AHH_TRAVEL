@@ -4,11 +4,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import React from "react";
-import {
-  UsersRound,
-  MessageCircle,
-  Eye,
-} from "lucide-react"; // gọn & ổn định cho App Router
+import { UsersRound, MessageCircle, Eye } from "lucide-react";
 
 type Stat = { label?: string; value: string | number; icon?: React.ReactNode };
 
@@ -16,25 +12,20 @@ export type CardHotProps = {
   image: string;
   title: string;
 
-  // giá
+  // Giá
   originalPrice?: number | string;
-  salePrice?: number;          // nếu backend đã tính sẵn
-  discountPercent?: number;    // ví dụ 20 nghĩa là -20%
-  discountAmount?: number;     // giảm theo số tiền
+  salePrice?: number;        // nếu backend đã tính sẵn
+  discountPercent?: number;  // ví dụ 20 → -20%
+  discountAmount?: number;   // giảm theo số tiền
 
   href?: string;
-  stats?: Stat[];              // sẽ render hàng dưới (3 mục)
+  stats?: Stat[];            // 3 mục thống kê dưới
 };
 
 function formatVND(n?: number) {
   if (typeof n !== "number" || !isFinite(n)) return "—";
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  })
-    .format(n)
-    .replace(/\s?₫$/, "VNĐ"); // theo ảnh là "VNĐ"
+  // Bảo đảm luôn hiển thị "VNĐ"
+  return `${n.toLocaleString("vi-VN")} VNĐ`;
 }
 
 function toNumber(x: number | string | undefined): number | undefined {
@@ -56,7 +47,7 @@ export default function CardHot({
   href = "#",
   stats = [],
 }: CardHotProps) {
-  // Tính giá còn lại
+  // --- Tính giá còn lại ---
   const originalNum = toNumber(originalPrice);
   let finalSale: number | undefined = salePrice;
 
@@ -69,7 +60,14 @@ export default function CardHot({
   }
   const hasSale = originalNum != null && finalSale != null && finalSale < originalNum;
 
-  // Stats mặc định theo ảnh
+  // --- Tính % giảm để hiển thị trên ribbon ---
+  let percentToShow: number | undefined = discountPercent;
+  if (percentToShow == null && originalNum && finalSale != null && finalSale < originalNum) {
+    percentToShow = Math.round((1 - finalSale / originalNum) * 100);
+  }
+  const showRibbon = typeof percentToShow === "number" && percentToShow > 0;
+
+  // --- Stats mặc định ---
   const defaultStats: Stat[] = [
     { label: "Đặt và quan tâm:", value: "74.2M", icon: <UsersRound size={18} /> },
     { value: "984k", icon: <Eye size={18} /> },
@@ -78,7 +76,7 @@ export default function CardHot({
   const s = (stats.length ? stats : defaultStats).slice(0, 3);
 
   return (
-    <article className="overflow-hidden rounded-3xl bg-white ring-1 ring-black/5 shadow-sm transition hover:-translate-y-[2px] hover:shadow-lg">
+    <article className="h-full flex flex-col overflow-hidden rounded-3xl bg-white ring-1 ring-black/5 shadow-sm transition hover:-translate-y-[2px] hover:shadow-lg">
       {/* Ảnh + ribbon */}
       <div className="relative h-[260px] w-full overflow-hidden">
         <Image
@@ -88,17 +86,15 @@ export default function CardHot({
           sizes="(min-width:1024px) 33vw, (min-width:640px) 50vw, 100vw"
           className="object-cover"
         />
-        {/* ribbon - góc phải */}
-        {typeof discountPercent === "number" && discountPercent > 0 && (
-          <div className="absolute right-3 top-3">
+
+        {showRibbon && (
+          <div className="absolute right-3 top-3 z-10">
             <div className="relative">
               <div className="rounded-md bg-amber-400 px-4 py-2 text-center shadow-md">
                 <div className="text-[13px] font-medium text-white/95">Giá hôm nay:</div>
-                <div className="text-[20px] font-extrabold leading-5 text-white">
-                  -{discountPercent}%
-                </div>
+                <div className="text-[20px] font-extrabold leading-5 text-white">-{percentToShow}%</div>
               </div>
-              {/* cái “đuôi” ribbon */}
+              {/* “đuôi” ribbon */}
               <div className="absolute -right-2 top-1/2 h-0 w-0 -translate-y-1/2 border-y-[12px] border-l-[10px] border-y-transparent border-l-amber-400" />
             </div>
           </div>
@@ -106,23 +102,32 @@ export default function CardHot({
       </div>
 
       {/* Nội dung */}
-      <div className="p-5">
+      <div className="flex-1 p-5 min-w-0">
         <h3 className="mb-2 line-clamp-2 text-[20px] font-extrabold uppercase text-slate-900">
           {title}
         </h3>
 
-        <div className="mb-3 text-[15px]">
-          <span className="text-slate-600">Giá gốc: </span>
-          <span className="font-extrabold text-slate-900">
-            {typeof originalPrice === "string" ? originalPrice : formatVND(originalNum)}
-          </span>
+        {/* Giá: gọn, không bị wrap lung tung */}
+        <div className="mt-2 mb-3 min-w-0">
+          <div className="flex items-baseline gap-x-2 gap-y-1 flex-wrap md:flex-nowrap">
+            <span className="shrink-0 text-slate-500 text-[12px]">Giá gốc:</span>
+            <span className="shrink-0 text-[12px] font-semibold text-slate-500 line-through">
+              {typeof originalPrice === "string" ? originalPrice : formatVND(originalNum)}
+            </span>
 
-          <span className="mx-2 text-slate-400">|</span>
+            <span aria-hidden className="shrink-0 h-4 w-px bg-slate-300 mx-1" />
 
-          <span className="text-slate-600">Còn: </span>
-          <span className="font-extrabold text-slate-900">
-            {hasSale ? formatVND(finalSale) : (typeof originalPrice === "string" ? originalPrice : formatVND(originalNum))}
-          </span>
+            <span className="shrink-0 text-slate-600">Còn lại:</span>
+            <span
+              className={`shrink-0 font-extrabold text-[15px] ${
+                hasSale ? "text-emerald-700" : "text-slate-900"
+              }`}
+            >
+              {hasSale
+                ? formatVND(finalSale)
+                : (typeof originalPrice === "string" ? originalPrice : formatVND(originalNum))}
+            </span>
+          </div>
         </div>
 
         <Link
