@@ -11,8 +11,6 @@ import { authApi } from "@/lib/auth/authApi";
 import { AxiosError } from "axios";
 import { useAuthStore } from "#/stores/auth";
 
-
-
 export default function LoginPage() {
   const { setToken, token, setUserId } = useAuthStore();
   const [email, setEmail] = useState("");
@@ -31,30 +29,30 @@ export default function LoginPage() {
       setRememberMe(true);
     }
   }, []);
-  const { mutate: signinMutate, isPending, isError , error} = useSignin();
+
+  const { mutate: signinMutate, isPending, isError, error } = useSignin();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     // try {
-      const input = { identifier: email, password: password };
-      signinMutate(input, {
-            onSuccess: (data) => {
-                console.log(data);
-                setToken(data.token);
-                //setCartId(data.cartId);
-                setUserId(data.userId);
-                //toast("Đăng nhập thành công!");
-                //router.replace("/home");
-                console.log("Đăng nhập thành công");
-            },
-            onError: () => {
-              console.log("Đăng nhập thất bại", error);
-                //toast.error("Đăng nhập thất bại!");
-            },
-        });
+    const input = { identifier: email, password: password };
+    signinMutate(input, {
+      onSuccess: (data) => {
+        console.log(data);
+        setToken(data.token);
+        //setCartId(data.cartId);
 
-      
+        // setUserId(data.userId);
+        //toast("Đăng nhập thành công!");
+        // window.location.href = "/";
+        console.log("Đăng nhập thành công");
+      },
+      onError: () => {
+        console.log("Đăng nhập thất bại", error);
+        //toast.error("Đăng nhập thất bại!");
+      },
+    });
+
     //   const res = await authApi.login(input);
     //   console.log("Đăng nhập thành công:", res);
 
@@ -81,15 +79,19 @@ export default function LoginPage() {
 
   return (
     <>
-      <h2 className="heading-2 font-bold text-[var(--secondary)] mb-1">ĐĂNG NHẬP</h2>
+      <h2 className="heading-2 font-bold text-[var(--secondary)] mb-1">
+        ĐĂNG NHẬP
+      </h2>
       <p className="text-sm text-gray-600 mb-5">Đăng nhập tài khoản của bạn</p>
 
-      {apiError && <p className="text-[var(--warning)] text-sm mb-2">{apiError}</p>}
+      {apiError && (
+        <p className="text-[var(--warning)] text-sm mb-2">{apiError}</p>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5 pt-5">
         <Input
           // type="email"
-          label="Email"
+          label="User name"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           // required
@@ -111,12 +113,17 @@ export default function LoginPage() {
           </button>
         </div>
 
-        <div className="flex items-center justify-between text-sm flex-wrap gap-2">
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="sr-only peer" />
+        <div className="flex items-center justify-end text-sm flex-wrap gap-2">
+          {/* <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="sr-only peer"
+            />
             <div className="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--primary)]" />
             <span className="ml-2 text-sm text-gray-900">Ghi nhớ mật khẩu</span>
-          </label>
+          </label> */}
 
           <a
             href="/auth/forgot-password"
@@ -126,13 +133,24 @@ export default function LoginPage() {
           </a>
         </div>
 
-        <Button type="submit" variant="primary" className="w-full mt-4"  >
-          {loading ? "Đang đăng nhập..." : "ĐĂNG NHẬP"}
+        <Button
+          type="submit"
+          variant="primary"
+          className="w-full mt-4"
+          disabled={isPending}
+        >
+          {isPending ? "Đang đăng nhập..." : "ĐĂNG NHẬP"}
         </Button>
       </form>
 
-      <p className="text-sm mt-6 text-gray-600">
-        Bạn chưa có tài khoản? <a href="/auth/register" className="text-[var(--primary)] hover:underline">Đăng ký ngay</a>
+      <p className="text-sm mt-6 text-gray-600 text-center">
+        Bạn chưa có tài khoản?{" "}
+        <a
+          href="/auth/register"
+          className="text-[var(--primary)] hover:underline"
+        >
+          Đăng ký ngay
+        </a>
       </p>
 
       <div className="flex items-center gap-2 py-2">
@@ -142,9 +160,15 @@ export default function LoginPage() {
       </div>
 
       <div className="flex justify-center mt-8 space-x-4">
-        <Button variant="outline-primary"><FaFacebookF className="text-[var(--primary)] text-xl" /></Button>
-        <Button variant="outline-primary"><FcGoogle className="text-xl" /></Button>
-        <Button variant="outline-primary"><FaApple className="text-black text-xl" /></Button>
+        <Button variant="outline-primary">
+          <FaFacebookF className="text-[var(--primary)] text-xl" />
+        </Button>
+        <Button variant="outline-primary">
+          <FcGoogle className="text-xl" />
+        </Button>
+        <Button variant="outline-primary">
+          <FaApple className="text-black text-xl" />
+        </Button>
       </div>
     </>
   );
