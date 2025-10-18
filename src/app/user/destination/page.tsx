@@ -34,6 +34,22 @@ function computePercent(t: any): number | undefined {
   return undefined;
 }
 
+// Chọn 1 hình ổn định từ mảng images của từng tour
+function pickTourImage(t: any): string {
+  const imgs = Array.isArray(t?.images) ? t.images.filter(Boolean) : [];
+  if (imgs.length > 0) {
+    const seed = String(t?._id ?? t?.id ?? t?.title ?? "");
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    }
+    return imgs[hash % imgs.length]; // ổn định theo tour
+    // Nếu muốn luôn lấy ảnh đầu tiên: return imgs[0];
+  }
+  // fallback các field cũ hoặc ảnh local
+  return t?.image ?? t?.cover ?? "/hot1.jpg";
+}
+
 const PAGE_SIZE = 9;
 const DEFAULT_PERCENT = 0;
 
@@ -68,7 +84,7 @@ export default function DestinationPage() {
       <div className="pointer-events-none absolute inset-0 -z-10">
         {/* base: trắng với một radial emerald rất nhẹ */}
         <div className="absolute inset-0 bg-[radial-gradient(900px_420px_at_10%_-10%,rgba(16,185,129,0.10),transparent_60%)]" />
-        {/* optional: một blob xanh cực nhẹ để tạo chiều sâu (có thể xoá nếu muốn hoàn toàn phẳng) */}
+        {/* optional blob xanh cực nhẹ */}
         <div className="absolute -top-24 -left-24 h-[24rem] w-[24rem] rounded-full bg-emerald-200/25 blur-3xl" />
       </div>
 
@@ -117,7 +133,7 @@ export default function DestinationPage() {
                   <CardHot
                     key={t._id}
                     title={t.title}
-                    image={t.image ?? t.cover ?? "/hot1.jpg"}
+                    image={pickTourImage(t)} // dùng 1 ảnh từ mảng images
                     originalPrice={t.priceAdult}
                     salePrice={t.salePrice}
                     discountPercent={percent}

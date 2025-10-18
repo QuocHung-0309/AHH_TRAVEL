@@ -8,6 +8,16 @@ import { Autoplay } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/autoplay';
 
+// helper: biến title thành slug an toàn
+const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    // @ts-ignore unicode regex
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
 const data = [
   { title: 'PHAN THIẾT', total: 4, image: '/hot1.jpg' },
   { title: 'ĐÀ LẠT', total: 2, image: '/hot1.jpg' },
@@ -44,8 +54,8 @@ const TourList = () => {
           }}
           className="!pb-8"
         >
-          {data.map((item) => (
-            <SwiperSlide key={item.title} className="!h-auto">
+          {data.map((item, idx) => (
+            <SwiperSlide key={`${slugify(item.title)}-${idx}`} className="!h-auto">
               <CardTourList {...item} />
             </SwiperSlide>
           ))}

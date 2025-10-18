@@ -33,6 +33,7 @@ const extractDays = (time?: string) => {
   return m ? Math.max(1, Number.parseInt(m[1], 10)) : 1
 }
 
+
 /* =================== Accordion “Lịch trình” =================== */
 const Chevron: React.FC<{ open?: boolean }> = ({ open }) => (
   <svg
