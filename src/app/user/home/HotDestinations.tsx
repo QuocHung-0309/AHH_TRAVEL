@@ -1,23 +1,75 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import DestinationCard from '@/components/cards/DestinationCard';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay } from 'swiper/modules';
+import { useGetTours } from '#/hooks/tours-hook/useTours';
 
 import 'swiper/css';
 import 'swiper/css/autoplay';
 
-const tours = [
-  { title: 'TOUR ĐỊA ĐẠO CỦ CHI', duration: 'NỬA NGÀY', price: '350.000VNĐ', image: '/hot1.jpg' },
-  { title: 'TOUR VŨNG TÀU', duration: '1 NGÀY', price: '1.050.000VNĐ', image: '/hot1.jpg' },
-  { title: 'MỸ THO - BẾN TRE - CẦN THƠ', duration: '2 NGÀY 1 ĐÊM', price: '1.550.000VNĐ', image: '/hot1.jpg' },
-  { title: 'ĐÀ NẴNG - HỘI AN', duration: '1 NGÀY', price: '480.000VNĐ', image: '/hot1.jpg' },
-  { title: 'TOUR TÂY BẮC', duration: '1 NGÀY', price: '480.000VNĐ', image: '/hot1.jpg' },
-  { title: 'ĐÀ LẠT', duration: '1 NGÀY', price: '480.000VNĐ', image: '/hot1.jpg' },
-];
+/* === helpers === */
+const toNum = (v?: number | string) => {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const n = Number(v.replace(/[^\d]/g, ''));
+    return Number.isNaN(n) ? undefined : n;
+  }
+};
+
+const vnd = (n?: number) =>
+  typeof n === 'number'
+    ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 })
+        .format(n)
+        .replace(/\s?₫$/, 'VNĐ')
+    : '—';
+
+/* === skeleton card === */
+function SkeletonCard() {
+  return (
+    <div className="h-full rounded-2xl border border-slate-200 p-4 shadow-sm">
+      <div className="aspect-[4/3] w-full animate-pulse rounded-xl bg-slate-200" />
+      <div className="mt-3 h-5 w-3/4 animate-pulse rounded bg-slate-200" />
+      <div className="mt-2 h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+      <div className="mt-4 h-6 w-1/3 animate-pulse rounded bg-slate-200" />
+    </div>
+  );
+}
 
 const HotDestinations = () => {
+  // gọi API tour
+  const { data, isLoading, isError } = useGetTours();
+
+  // Chuẩn hoá list do hook của bạn có thể trả {data: Tour[]} hoặc trực tiếp Tour[]
+  const list: any[] = useMemo(() => {
+    if (Array.isArray((data as any)?.data)) return (data as any).data as any[];
+    if (Array.isArray(data as any)) return (data as any) as any[];
+    return [];
+  }, [data]);
+
+  // Map về props cho DestinationCard
+  const cards = useMemo(
+    () =>
+      list.slice(0, 12).map((t) => {
+        const price = toNum(t.salePrice ?? t.priceAdult);
+        const image =
+          (Array.isArray(t.images) && t.images[0]) ||
+          t.image ||
+          t.cover ||
+          '/hot1.jpg';
+        return {
+          title: t.title,
+          duration: t.time ?? '—',
+          price: vnd(price),
+          image,
+          // nếu DestinationCard có prop href, có thể truyền:
+          // href: `/user/destination/${t.destinationSlug ?? (t.title || '').toLowerCase().replace(/\s+/g, '-')}/${t._id ?? t.id ?? ''}`,
+        };
+      }),
+    [list]
+  );
+
   return (
     <section className="py-14 sm:py-16 px-4">
       <div className="max-w-7xl mx-auto">
@@ -39,11 +91,31 @@ const HotDestinations = () => {
           }}
           className="!pb-8"
         >
-          {tours.map((t) => (
-            <SwiperSlide key={t.title} className="!h-auto">
-              <DestinationCard {...t} />
+          {/* Loading */}
+          {isLoading &&
+            Array.from({ length: 6 }).map((_, i) => (
+              <SwiperSlide key={`s-${i}`} className="!h-auto">
+                <SkeletonCard />
+              </SwiperSlide>
+            ))}
+
+          {/* Error fallback */}
+          {isError && !isLoading && (
+            <SwiperSlide className="!h-auto">
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">
+                Không tải được danh sách tour. Vui lòng thử lại sau.
+              </div>
             </SwiperSlide>
-          ))}
+          )}
+
+          {/* Data */}
+          {!isLoading &&
+            !isError &&
+            cards.map((c, idx) => (
+              <SwiperSlide key={`${c.title}-${idx}`} className="!h-auto">
+                <DestinationCard {...c} />
+              </SwiperSlide>
+            ))}
         </Swiper>
       </div>
     </section>

@@ -30,6 +30,30 @@ const nextConfig: NextConfig = {
         hostname: 'motogo.vn',
         port: '',
         pathname: '/wp-content/uploads/**' , // đúng với đường dẫn bạn đang dùng
+      },  
+      {
+        protocol: 'https',
+        hostname: 'cdn3.ivivu.com', // 👈 host đang lỗi
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'bazaarvietnam.vn', // 👈 host đang lỗi
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'mia.vn', // 👈 host đang lỗi
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'dulichviet.com.vn', // 👈 host đang lỗi
+        port: '',
+        pathname: '/**',
       },
     ],
   },

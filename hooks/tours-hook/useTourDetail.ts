@@ -8,7 +8,7 @@ export const useGetTourById = (id?: string | number) =>
     queryKey: ["getTourById", id ?? ""] as const,
     queryFn: () => getTourById(id as string | number),
     enabled: !!id,
-    placeholderData: (prev) => prev, // giữ dữ liệu cũ khi chuyển id
+     placeholderData: (prev) => prev, // giữ dữ liệu cũ khi chuyển id
   });
 
 /** Alias để import thuận tay: `import { useTourDetail } from ...` */
