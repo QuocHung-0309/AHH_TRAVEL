@@ -8,8 +8,12 @@
    ⚙️ CSS Variables (Light)
    ========================= */
 :root {
+  --primary: #293dce; /* xanh */
+  --accent:  #f97316; /* cam */
   --background: #ffffff;
   --foreground: #171717;
+  --brand-primary: #1D3B72; /* Xanh AHH (navy) */
+  --brand-accent:  #F15A24; /* Đỏ cam chữ Tr */
 
   /* Brand */
   --primary: #307afd;

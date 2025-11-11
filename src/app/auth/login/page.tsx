@@ -1,22 +1,27 @@
-// src/app/auth/login/page.tsx
+// /app/auth/login/page.tsx
 "use client";
-import { useSignin } from "#/hooks/auth-hook/useAuth";
+
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { FaFacebookF, FaApple } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
 import { FiEye, FiEyeOff } from "react-icons/fi";
-import { authApi } from "@/lib/auth/authApi";
 import { AxiosError } from "axios";
+import { useSignin } from "#/hooks/auth-hook/useAuth";
 import { useAuthStore } from "#/stores/auth";
+import { authApi } from "@/lib/auth/authApi";
 
 export default function LoginPage() {
-  const { setToken, token, setUserId } = useAuthStore();
+  const router = useRouter();
+
+  const setToken = useAuthStore((s) => s.setToken);
+  const setUserId = useAuthStore((s) => s.setUserId);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
 
@@ -29,30 +34,30 @@ export default function LoginPage() {
       setRememberMe(true);
     }
   }, []);
-
-  const { mutate: signinMutate, isPending, isError, error } = useSignin();
+  const { mutate: signinMutate, isPending, isError , error} = useSignin();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
     // try {
-    const input = { identifier: email, password: password };
-    signinMutate(input, {
-      onSuccess: (data) => {
-        console.log(data);
-        setToken(data.token);
-        //setCartId(data.cartId);
+      const input = { identifier: email, password: password };
+      signinMutate(input, {
+            onSuccess: (data) => {
+                console.log(data);
+                setToken(data.token);
+                //setCartId(data.cartId);
+                setUserId(data.userId);
+                //toast("Đăng nhập thành công!");
+                //router.replace("/home");
+                console.log("Đăng nhập thành công");
+            },
+            onError: () => {
+              console.log("Đăng nhập thất bại", error);
+                //toast.error("Đăng nhập thất bại!");
+            },
+        });
 
-        // setUserId(data.userId);
-        //toast("Đăng nhập thành công!");
-        // window.location.href = "/";
-        console.log("Đăng nhập thành công");
-      },
-      onError: () => {
-        console.log("Đăng nhập thất bại", error);
-        //toast.error("Đăng nhập thất bại!");
-      },
-    });
-
+      
     //   const res = await authApi.login(input);
     //   console.log("Đăng nhập thành công:", res);
 
@@ -68,13 +73,25 @@ export default function LoginPage() {
     //     localStorage.removeItem("remember_password");
     //   }
 
-    //   window.location.href = "/";
-    // } catch (error: unknown) {
-    //   const err = error as AxiosError<{ message?: string }>;
-    //   setApiError(err.response?.data?.message || "Đăng nhập thất bại");
-    // } finally {
-    //   setLoading(false);
-    // }
+          // Lưu token vào Zustand (persist)
+          setToken({ accessToken, refreshToken });
+
+          // (tuỳ chọn) lấy trước userId để các trang khác có ngay
+          try {
+            const me = await authApi.getProfile(accessToken);
+            setUserId(me.id);
+          } catch {
+            // bỏ qua, Header sẽ auto fetch lại
+          }
+
+          router.replace("/"); // replace cho sạch history
+        },
+        onError: (error) => {
+          const err = error as AxiosError<{ message?: string }>;
+          setApiError(err.response?.data?.message || "Đăng nhập thất bại");
+        },
+      }
+    );
   };
 
   return (
@@ -91,11 +108,11 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-5 pt-5">
         <Input
           // type="email"
-          label="User name"
+          label="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          // required
         />
+
         <div className="relative">
           <Input
             type={showPassword ? "text" : "password"}
@@ -106,24 +123,19 @@ export default function LoginPage() {
           />
           <button
             type="button"
-            onClick={() => setShowPassword(!showPassword)}
+            onClick={() => setShowPassword((v) => !v)}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
           >
             {showPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
           </button>
         </div>
 
-        <div className="flex items-center justify-end text-sm flex-wrap gap-2">
-          {/* <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="sr-only peer"
-            />
+        <div className="flex items-center justify-between text-sm flex-wrap gap-2">
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="sr-only peer" />
             <div className="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--primary)]" />
             <span className="ml-2 text-sm text-gray-900">Ghi nhớ mật khẩu</span>
-          </label> */}
+          </label>
 
           <a
             href="/auth/forgot-password"

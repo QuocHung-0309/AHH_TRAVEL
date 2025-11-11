@@ -1,19 +1,20 @@
-// src/app/admin/login/layout.tsx
-"use client"; // Bắt buộc vì dùng Provider
+"use client";
 
-import { Provider } from 'react-redux';
-import { store } from '@/app/admin/store/store';
-import SlideshowLayout from '@/components/ui/SlideshowLayout';
-import React from 'react';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAdminStore } from "#/stores/admin";
 
-export default function AdminLoginLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <Provider store={store}>
-      <SlideshowLayout>{children}</SlideshowLayout>
-    </Provider>
-  );
+  const router = useRouter();
+  const token = useAdminStore((s) => s.adminToken);
+
+  useEffect(() => {
+    if (!token) router.replace("/admin/login");
+  }, [token, router]);
+
+  return <>{children}</>;
 }

@@ -1,45 +1,32 @@
+// /stores/auth.ts
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 interface AuthStore {
-    token: {
-        accessToken: string | null;
-        refreshToken: string | null;
-    };
-    userId: string | null;
-    setUserId: (userId: string) => void;
-    setToken: (token: { accessToken: string; refreshToken: string }) => void;
-    resetAuth: () => void;
+  token: { accessToken: string | null; refreshToken: string | null };
+  userId: string | null;
+  setUserId: (id: string | null) => void;
+  setToken: (t: { accessToken: string | null; refreshToken: string | null }) => void; // ✅ thêm
+  setTokenPartial: (t: Partial<{ accessToken: string | null; refreshToken: string | null }>) => void;
+  resetAuth: () => void;
 }
-export const useAuthStore = create(
-    persist<AuthStore>(
-        (set, get) => ({
-            token: {
-                accessToken: null,
-                refreshToken: null,
-            },
-            userId: null,
-            setUserId: (userId) => set({ userId: userId }),
-            setToken: (payload) =>
-                set(() => ({
-                    token: {
-                        accessToken: payload.accessToken,
-                        refreshToken: payload.refreshToken,
-                    },
-                })),
-            resetAuth: () =>
-                set(() => ({
-                    token: {
-                        accessToken: "",
-                        refreshToken: "",
-                        userId: "",
-                    },
-                })),
-        }),
 
-        {
-            name: "auth",
-            storage: createJSONStorage(() => localStorage),
-        },
-    ),
+export const useAuthStore = create(
+  persist<AuthStore>(
+    (set, get) => ({
+      token: { accessToken: null, refreshToken: null },
+      userId: null,
+
+      setUserId: (id) => set({ userId: id }),
+
+      setToken: (t) => set({ token: t }), // ✅ full-set
+
+      setTokenPartial: (t) =>
+        set({ token: { ...get().token, ...t } }),
+
+      resetAuth: () =>
+        set({ token: { accessToken: null, refreshToken: null }, userId: null }),
+    }),
+    { name: "auth", storage: createJSONStorage(() => localStorage) }
+  )
 );

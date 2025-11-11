@@ -15,7 +15,7 @@ const qnaData = [
     image: '/city-2.svg',
   },
   {
-    id: 1,
+    id: 2,
     title: '“Xin kinh nghiệm Xuyên Việt 30 ngày”',
     description:
       'Mình dự kiến giữa tháng 04 này làm chuyến xuyên Việt: gửi xe từ TP.HCM ra Hà Nội rồi đi cung Đông Bắc – Tây Bắc, vòng về chạy xe vào lại HCM.',
@@ -24,7 +24,7 @@ const qnaData = [
     image: '/city-2.svg',
   },
   {
-    id: 1,
+    id: 3,
     title: '“Xin kinh nghiệm Xuyên Việt 30 ngày”',
     description:
       'Mình dự kiến giữa tháng 04 này làm chuyến xuyên Việt: gửi xe từ TP.HCM ra Hà Nội rồi đi cung Đông Bắc – Tây Bắc, vòng về chạy xe vào lại HCM.',
@@ -33,7 +33,7 @@ const qnaData = [
     image: '/city-2.svg',
   },
   {
-    id: 1,
+    id: 4,
     title: '“Xin kinh nghiệm Xuyên Việt 30 ngày”',
     description:
       'Mình dự kiến giữa tháng 04 này làm chuyến xuyên Việt: gửi xe từ TP.HCM ra Hà Nội rồi đi cung Đông Bắc – Tây Bắc, vòng về chạy xe vào lại HCM.',

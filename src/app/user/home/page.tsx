@@ -1,19 +1,18 @@
-'use client';
+"use client";
 
-import FadeInWhenVisible from '@/components/FadeInWhenVisible';
-import SlideIn from '@/components/SlideIn';
-import { StaggerContainer, StaggerItem } from '@/components/Stagger';
-import ScrollProgress from '@/components/ScrollProgress';
+import FadeInWhenVisible from "@/components/FadeInWhenVisible";
+import SlideIn from "@/components/SlideIn";
+import { StaggerContainer, StaggerItem } from "@/components/Stagger";
+import ScrollProgress from "@/components/ScrollProgress";
 
-
-import SearchBox from '@/components/ui/SearchBox';
-import HomeBanner from './HomeBanner';
-import ServiceSection from './ServiceSection';
-import HotDestinations from './HotDestinations';
-import HotSearchSection from './HotSearchSection';
-import QNASection from './QNASection';
-import TourList from './TourList';
-import BlogSection from './BlogSection';
+import SearchBox from "@/components/ui/SearchBox";
+import HomeBanner from "./HomeBanner";
+import ServiceSection from "./ServiceSection";
+import HotDestinations from "./HotDestinations";
+import HotSearchSection from "./HotSearchSection";
+import QNASection from "./QNASection";
+import TourList from "./TourList";
+import BlogSection from "./BlogSection";
 
 export default function UserHomePage() {
   return (
@@ -21,19 +20,37 @@ export default function UserHomePage() {
       <ScrollProgress />
 
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute w-[500px] h-[450px] bg-[var(--secondary)] opacity-50 blur-[250px]" style={{ top: '400px', left: '-420px' }} />
-        <div className="absolute w-[500px] h-[550px] bg-[var(--primary)] opacity-50 blur-[250px]" style={{ top: '770px', left: '1470px' }} />
-        <div className="absolute w-[400px] h-[300px] bg-[var(--primary)] opacity-50 blur-[250px]" style={{ top: '1350px', left: '-300px' }} />
-        <div className="absolute w-[500px] h-[450px] bg-[var(--secondary)] opacity-50 blur-[250px]" style={{ top: '2050px', left: '1470px' }} />
-        <div className="absolute w-[400px] h-[300px] bg-[var(--primary)] opacity-50 blur-[250px]" style={{ top: '2980px', left: '-150px' }} />
-        <div className="absolute w-[500px] h-[550px] bg-[var(--secondary)] opacity-50 blur-[250px]" style={{ top: '4750px', left: '1470px' }} />
+        <div
+          className="absolute w-[500px] h-[450px] bg-[var(--secondary)] opacity-50 blur-[250px]"
+          style={{ top: "400px", left: "-420px" }}
+        />
+        <div
+          className="absolute w-[500px] h-[550px] bg-[var(--primary)] opacity-50 blur-[250px]"
+          style={{ top: "770px", left: "1470px" }}
+        />
+        <div
+          className="absolute w-[400px] h-[300px] bg-[var(--primary)] opacity-50 blur-[250px]"
+          style={{ top: "1350px", left: "-300px" }}
+        />
+        <div
+          className="absolute w-[500px] h-[450px] bg-[var(--secondary)] opacity-50 blur-[250px]"
+          style={{ top: "2050px", left: "1470px" }}
+        />
+        <div
+          className="absolute w-[400px] h-[300px] bg-[var(--primary)] opacity-50 blur-[250px]"
+          style={{ top: "2980px", left: "-150px" }}
+        />
+        <div
+          className="absolute w-[500px] h-[550px] bg-[var(--secondary)] opacity-50 blur-[250px]"
+          style={{ top: "4750px", left: "1470px" }}
+        />
       </div>
 
       <FadeInWhenVisible>
         <HomeBanner />
       </FadeInWhenVisible>
 
-      <FadeInWhenVisible delay={0.1} y={20}>
+      <FadeInWhenVisible delay={0.1}>
         <SearchBox />
       </FadeInWhenVisible>
 
