@@ -1,53 +1,82 @@
-# 🏙️ SAIGON ĐI WEB
+# 🏙️ AHH TRAVEL
 
-Dự án web ứng dụng Next.js + TypeScript dành cho nền tảng khám phá thành phố Sài Gòn.  
-Cấu trúc được tổ chức rõ ràng theo module và thành phần, dễ mở rộng và bảo trì.
+# 🏙️ AHH TRAVEL – Ứng dụng du lịch Sài Gòn
+
+Website đặt tour và khám phá địa điểm du lịch của **AHH Travel**, xây dựng với **Next.js + TypeScript + Supabase + MongoDB + Node.js**.  
+Hệ thống gồm **Frontend (Next.js)** và **Backend (API riêng)** có phân quyền **Admin / User** rõ ràng.
 
 ---
 
+## 🚀 TỔNG QUAN
+
+- **Frontend:** Next.js 15 (App Router) + Tailwind CSS + React Query + TypeScript  
+- **Backend:** Node.js + Express + MongoDB + JWT Authentication  
+- **Database:** MongoDB Atlas  
+- **Deploy:** Netlify / Vercel (FE) + Render / Railway (BE)
+
+Hệ thống bao gồm 2 phần giao diện chính:
+1. **User Site:** Đặt tour, xem lịch sử đặt chỗ, quản lý tài khoản.
+2. **Admin Dashboard:** Quản lý tour, leader, chi phí, người dùng, blog,...
+
+---
+
+## 📁 CẤU TRÚC DỰ ÁN
+
 <details>
-<summary>📁 CẤU TRÚC THƯ MỤC</summary>
+<summary>🧭 Sơ đồ thư mục</summary>
 
 ```bash
-saigon-di-web/
-├── .next/                 # Thư mục build tự động của Next.js
-├── node_modules/          # Thư viện cài bằng npm
-├── public/                # Ảnh, icon, font công khai
-
-├── src/                   # Mã nguồn chính của dự án
-│   ├── app/               # Routing theo App Router (Next.js 13+)
-│   │   ├── layout.tsx     # Global layout (Header, Footer, Theme...)
-│   │   ├── page.tsx       # Trang homepage (/)
-│   │   ├── admin/         # Các route và layout riêng cho admin
-│   │   ├── auth/          # Đăng nhập, đăng ký,...
-│   │   └── user/          # Trang dành cho người dùng
+ahh-travel/
+├── public/                     # Ảnh, icon, font công khai
+│   ├── logo.png
+│   └── hot1.jpg
 │
-│   ├── components/        # Các UI components tái sử dụng
-│   │   ├── Header.tsx
-│   │   ├── Footer.tsx
-│   │   ├── MapBox.tsx
-│   │   └── PostCard.tsx
-│
-│   ├── hooks/             # Custom React Hooks
-│   │   └── useUser.ts     # Lấy thông tin người dùng hiện tại
-│
-│   ├── lib/               # Thư viện / service dùng chung
-│   │   └── axios.ts       # Cấu hình axios toàn cục
-│
-│   ├── styles/            # Global CSS
+├── src/
+│   ├── app/                    # Routing App Router (Next.js 13+)
+│   │   ├── layout.tsx          # Layout toàn cục (Header/Footer)
+│   │   ├── page.tsx            # Trang chủ (Home)
+│   │   ├── auth/               # Đăng nhập, đăng ký, quên mật khẩu
+│   │   ├── user/               # Các trang người dùng (Đặt chỗ, Tài khoản,...)
+│   │   └── admin/              # Trang quản trị hệ thống
+│   │       ├── dashboard/      # Tổng quan admin
+│   │       ├── tours/          # Quản lý tour
+│   │       ├── leader/         # Quản lý trưởng đoàn
+│   │       └── login/          # Trang đăng nhập admin
+│   │
+│   ├── components/             # UI Components tái sử dụng
+│   │   ├── cards/
+│   │   │   ├── CardHot.tsx
+│   │   │   ├── CardTour.tsx
+│   │   │   └── BookingCard.tsx
+│   │   ├── layouts/
+│   │   └── ui/                 # Nút, Input, Modal,...
+│   │
+│   ├── hooks/                  # React Hooks
+│   │   ├── useUser.ts          # Lấy thông tin user
+│   │   ├── useAuth.ts          # Đăng nhập/đăng ký
+│   │   └── admin-hook/         # Hooks cho trang quản trị
+│   │       ├── useAdmin.ts
+│   │       └── useOngoingTours.ts
+│   │
+│   ├── lib/                    # Cấu hình / API / tiện ích
+│   │   ├── axios.ts            # Axios client chung
+│   │   ├── authApi.ts          # API người dùng
+│   │   ├── admin/              # API riêng cho admin
+│   │   │   ├── adminApi.ts     # Axios instance riêng Admin
+│   │   │   └── index.ts        # Các hàm login, getTours,...
+│   │   ├── utils/              # Hàm tiện ích (formatVND, slugify,...)
+│   │   └── types.ts            # Định nghĩa kiểu dữ liệu
+│   │
+│   ├── styles/
 │   │   └── globals.css
+│   │
+│   └── types/                  # Interface & type mở rộng
 │
-│   └── types/             # Định nghĩa các TypeScript types/interface
-│
-├── .env.local             # Biến môi trường
-├── .gitignore             # File git ignore
-├── next.config.ts         # Cấu hình Next.js
-├── eslint.config.mjs      # Cấu hình ESLint
-├── package.json           # Khai báo dependencies
-└── tsconfig.json          # Cấu hình TypeScript
-```
-
-</details>
+├── .env.local                  # Biến môi trường
+├── next.config.ts              # Cấu hình Next.js
+├── tailwind.config.ts          # Cấu hình Tailwind
+├── package.json
+└── tsconfig.json
 
 ---
 
@@ -72,17 +101,6 @@ Dự án sử dụng App Router của Next.js (v13+):
 - Reusable Components → Giảm lặp code
 - Hooks, lib riêng → Dễ test và bảo trì
 - TypeScript + types/ → Hạn chế lỗi runtime
-
----
-
-## 🚀 HƯỚNG PHÁT TRIỂN TIẾP THEO (GỢI Ý)
-
-| Thư mục        | Mục đích                                      |
-|----------------|-----------------------------------------------|
-| `utils/`       | Hàm tiện ích (formatDate, slugify,...)        |
-| `constants/`   | Biến tĩnh như API URL, roles, statuses,...    |
-| `context/`     | Global state (AuthContext, ThemeContext...)   |
-| `middleware.ts`| Xử lý auth redirect, route guard,...          |
 
 ---
 
