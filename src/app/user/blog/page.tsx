@@ -9,7 +9,7 @@ import BlogListSection from './BlogListSection';
 import RecentPosts from './RecentPosts';
 import FeaturedBloggers from './FeaturedBloggers';
 import Image from 'next/image';
-import { blogApi } from '@/lib/blog/blogApi';
+import { getBlogs } from '@/lib/blog/blogApi';
 import { mapBlogToPost } from '@/lib/blog/mapBlogToPost';
 
 export default function BlogPage() {
@@ -19,7 +19,7 @@ export default function BlogPage() {
   useEffect(() => {
     async function fetchBlogs() {
       try {
-        const res = await blogApi.getBlogs({ limit: 3, sort: "-createdAt", status: "approved" });
+        const res = await getBlogs({ limit: 3, sort: "-createdAt", status: "approved" });
         const approvedBlogs = res.data
           .filter((blog: any) => blog.status === "approved")
           .map(mapBlogToPost);

@@ -1,85 +1,120 @@
+// /lib/auth/authApi.ts
 import axios from "axios";
-import axiosInstance from "../axiosInstance";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:4000/api";
+
+const api = axios.create({
+  baseURL: API_URL,
+  headers: { "Content-Type": "application/json" },
+});
 
 type VerifyOtpPayload =
   | { otp: string; email: string }
   | { otp: string; phone: string };
 
 export const authApi = {
-  // Đăng nhập
-  login: async (email: string, password: string) => {
-    const res = await axios.post(`${API_URL}/users/login`, { email, password });
-    return res.data;
+  // BE nhận identifier (email/username) + password
+  async login(identifier: string, password: string) {
+    const res = await api.post("/auth/login", { identifier, password });
+    // Chuẩn hoá shape trả về
+    const d = res.data ?? {};
+    return {
+      accessToken: d.accessToken ?? d.token ?? d.data?.accessToken ?? null,
+      refreshToken: d.refreshToken ?? d.data?.refreshToken ?? null,
+      raw: d,
+    };
   },
 
-  // Đăng ký
-  register: async (
+  async register(
     lastName: string,
     firstName: string,
     email: string,
     phone: string,
     password: string
-  ) => {
-    const res = await axios.post(`${API_URL}/users/register`, {
+  ) {
+    const res = await api.post("/auth/register", {
       lastName,
       firstName,
       email,
       phone,
-      password
+      password,
     });
     return res.data;
   },
 
-  // Đăng xuất
-  logout: async () => {
-    const res = await axiosInstance.post("/users/logout");
+  async logout() {
+    const res = await api.post("/auth/logout");
     return res.data;
   },
 
-  // Refresh token (đã dùng trong axiosInstance)
-  requestToken: async (refreshToken: string) => {
-    const res = await axios.post(`${API_URL}/users/request-token`, { refreshToken });
+  async requestToken(refreshToken: string) {
+    const res = await api.post("/auth/request-token", { refreshToken });
     return res.data;
   },
 
-  // Đổi mật khẩu
-  changePassword: async (oldPassword: string, newPassword: string) => {
-    const res = await axiosInstance.put("/users/change-password", {
-      oldPassword,
-      newPassword
-    });
+  async changePassword(oldPassword: string, newPassword: string) {
+    const res = await api.put("/auth/change-password", { oldPassword, newPassword });
     return res.data;
   },
 
-  // Gửi OTP qua email
-  sendEmailOTP: async (email: string, purpose: "register" | "verify" | "forgot_password") => {
-    const res = await axios.post(`${API_URL}/users/send-otp`, { email, purpose });
+  async sendEmailOTP(
+    email: string,
+    purpose: "register" | "verify" | "forgot_password"
+  ) {
+    const res = await api.post("/auth/send-otp", { email, purpose });
     return res.data;
   },
 
-  // Xác thực OTP
-  verifyOTP: async (emailOrPhone: string, otp: string) => {
+  async verifyOTP(emailOrPhone: string, otp: string) {
     const isEmail = emailOrPhone.includes("@");
     const payload: VerifyOtpPayload = isEmail
       ? { otp, email: emailOrPhone }
       : { otp, phone: emailOrPhone };
-
-    const res = await axios.post(`${API_URL}/users/verify-otp`, payload);
+    const res = await api.post("/auth/verify-otp", payload);
     return res.data;
   },
-
-// Lấy thông tin profile theo token
-getProfile: async (token: string) => {
-  const res = await axios.get(`${API_URL}/users/profile`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-    },
+// /lib/auth/authApi.ts
+  // /lib/auth/authApi.ts
+async getProfile(token: string) {
+  const res = await api.get("/auth/me", {
+    headers: { Authorization: `Bearer ${token}` },
+    // tránh 304: luôn đổi URL bằng tham số thời gian
+    params: { _ts: Date.now() },
+    // tuỳ chọn: không throw nếu nhận 304
+    validateStatus: (s) => (s >= 200 && s < 300) || s === 304,
   });
-  return res.data;
+
+  // Nếu 304 và lib không trả body -> cố lấy từ axios cache, nếu không được thì fallback rỗng
+  const raw = (res.data && res.data !== "") ? res.data : {};
+  const u: any = raw?.user ?? raw ?? {};
+
+  const first = u.firstName ?? u.given_name ?? u.givenName ?? "";
+  const last  = u.lastName  ?? u.family_name ?? u.familyName ?? "";
+  const fallbackFromEmail = (u.email && String(u.email).split("@")[0]) || "";
+
+  // tách riêng để tránh lỗi mixing ?? và ||
+  let fullName =
+    u.fullName ??
+    u.name ??
+    u.displayName ??
+    `${first} ${last}`.trim();
+  if (!fullName) fullName = u.username || fallbackFromEmail || "User";
+
+  const avatar =
+    u.avatar ?? u.photoURL ?? u.photoUrl ?? u.picture ?? u.image ?? "/Image.svg";
+
+  return {
+    id: u._id ?? u.id ?? null,
+    fullName,
+    email: u.email ?? "",
+    phone: u.phone ?? u.phoneNumber ?? "",
+    avatar,
+    points: u.points ?? 0,
+    memberStatus: u.memberStatus ?? "Thành viên",
+  };
 }
+
 };
+
+export default authApi;

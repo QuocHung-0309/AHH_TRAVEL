@@ -53,7 +53,7 @@ const BlogCard: React.FC<BlogCardProps> = ({ post }) => {
         </div>
 
         <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between text-sm text-[var(--gray-2)] gap-2">
-          <Link href={`/user/profile`} className="flex items-center gap-2">
+          <Link href={`/user/me`} className="flex items-center gap-2">
             <Image
               src={post.authorAvatar}
               alt={post.author}

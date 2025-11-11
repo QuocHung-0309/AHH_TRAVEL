@@ -1,5 +1,5 @@
-// src/apis/tours/tour.ts
-import axios from "#/apis/api-constant";
+import axiosInstance from "@/lib/axiosInstance";
+
 
 /** Kiểu tour danh sách */
 export type Tour = {
@@ -127,13 +127,13 @@ export const getTours = async (
   limit = 9,
   query?: ToursQuery
 ): Promise<ToursResponse> => {
-  const res = await axios.get<ToursResponse>("/api/tours", {
+  const res = await axiosInstance.get<ToursResponse>("/tours", {
     params: buildParams(page, limit, query),
   });
   return res.data;
 };
 
 export const getTourById = async (id: string | number): Promise<TourDetail> => {
-  const res = await axios.get<TourDetail>(`/api/tours/${id}`);
+  const res = await axiosInstance.get<TourDetail>(`/tours/${id}`);
   return res.data;
 };

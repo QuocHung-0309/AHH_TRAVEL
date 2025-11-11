@@ -1,79 +1,78 @@
 import axios from "axios";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+import { useAuthStore } from "#/stores/auth";
+import { authApi } from "@/lib/auth/authApi"; // để refresh khi 401
+import { useAdminStore } from "#/stores/admin";
+const baseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 const axiosInstance = axios.create({
-  baseURL: API_URL,
+  baseURL,
+  withCredentials: false,
 });
 
-// --- Refresh Token Support ---
-let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
-
-function subscribeTokenRefresh(cb: (token: string) => void) {
-  refreshSubscribers.push(cb);
-}
-
-function onRefreshed(token: string) {
-  refreshSubscribers.forEach((cb) => cb(token));
-  refreshSubscribers = [];
-}
-
-// Request: gắn accessToken
 axiosInstance.interceptors.request.use((config) => {
-  const token = localStorage.getItem("accessToken");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const tk = useAuthStore.getState().token?.accessToken;
+  if (tk) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${tk}`;
   }
   return config;
 });
 
-// Response: nếu 401 thì thử refresh
+// === TỰ ĐỘNG REFRESH KHI 401 (nếu bạn có refreshToken) ===
+let refreshing = false;
+let queue: Array<() => void> = [];
+
 axiosInstance.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+  (res) => res,
+  async (err) => {
+    const { response, config } = err || {};
+    const original = config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        return new Promise((resolve) => {
-          subscribeTokenRefresh((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            resolve(axiosInstance(originalRequest));
-          });
-        });
+    if (response?.status === 401 && !original._retry) {
+      original._retry = true;
+      const store = useAuthStore.getState();
+      const refresh = store.token?.refreshToken;
+
+      if (!refresh) {
+        useAuthStore.getState().resetAuth();
+        return Promise.reject(err);
       }
 
-      originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        const refreshToken = localStorage.getItem("refreshToken");
-        const res = await axios.post(`${API_URL}/users/request-token`, { refreshToken });
-        const newAccessToken = res.data.accessToken;
-
-        // Lưu token mới
-        localStorage.setItem("accessToken", newAccessToken);
-        if (res.data.refreshToken) {
-          localStorage.setItem("refreshToken", res.data.refreshToken);
+      if (!refreshing) {
+        refreshing = true;
+        try {
+          const data = await authApi.requestToken(refresh);
+          useAuthStore.getState().setTokenPartial({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+          queue.forEach((fn) => fn());
+          queue = [];
+          return axiosInstance(original);
+        } catch (e) {
+          useAuthStore.getState().resetAuth();
+          return Promise.reject(e);
+        } finally {
+          refreshing = false;
         }
-
-        axiosInstance.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
-        onRefreshed(newAccessToken);
-
-        return axiosInstance(originalRequest);
-      } catch (err) {
-        console.error("❌ Refresh token thất bại:", err);
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        window.location.href = "/login";
-      } finally {
-        isRefreshing = false;
       }
+
+      // đợi refresh xong rồi bắn lại
+      return new Promise((resolve) => {
+        queue.push(() => resolve(axiosInstance(original)));
+      });
     }
 
-    return Promise.reject(error);
+    // 403: thiếu quyền/role
+    if (response?.status === 403) {
+      console.warn("403 Forbidden:", original?.url);
+    }
+    return Promise.reject(err);
   }
 );
+axiosInstance.interceptors.request.use((config) => {
+  try {
+    const token = JSON.parse(localStorage.getItem("admin-auth") || "{}")?.state?.adminToken;
+    if (token) config.headers["Authorization"] = `Bearer ${token}`;
+  } catch {}
+  return config;
+});
 
 export default axiosInstance;

@@ -1,112 +1,392 @@
-import {users } from '@/app/assets/data/user';
-import {posts } from '@/app/assets/data/post';
-import { notFound } from 'next/navigation';
-import { PostTable } from './PostTable';
-import BackgroundBlur from "@/shared/BackgroundBlur";
+// src/app/user/profile/page.tsx
+"use client";
 
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "#/stores/auth";
+import { authApi } from "@/lib/auth/authApi";
+import Link from "next/link";
+import { Plus } from "lucide-react"; // Icon cho nút "Thêm"
 
-interface Props {
-    params: {
-      id: string;
+// 1. Mở rộng Type để chứa dữ liệu mới
+type UserProfile = {
+  fullName: string;
+  email: string;
+  phone: string; // Giữ lại phone chính
+  gender?: string; // "Male", "Female", "Other"
+  dob?: string; // "YYYY-MM-DD"
+  city?: string;
+  emails?: { email: string; isVerified: boolean; isPrimary: boolean }[];
+  phoneNumbers?: { phone: string; isVerified: boolean; isPrimary: boolean }[];
+};
+
+// --- Component Tabs (Giữ nguyên) ---
+function ProfileTabs({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}) {
+  return (
+    <div className="flex border-b border-gray-200 mb-6">
+      <button
+        onClick={() => onTabChange("info")}
+        className={`px-4 py-2 font-semibold transition-colors duration-150 ${
+          activeTab === "info"
+            ? "border-b-2 border-blue-600 text-blue-600"
+            : "text-gray-500 hover:text-gray-700"
+        }`}
+      >
+        Thông tin tài khoản
+      </button>
+      <button
+        onClick={() => onTabChange("password")}
+        className={`px-4 py-2 font-semibold transition-colors duration-150 ${
+          activeTab === "password"
+            ? "border-b-2 border-blue-600 text-blue-600"
+            : "text-gray-500 hover:text-gray-700"
+        }`}
+      >
+        Mật khẩu & Bảo mật
+      </button>
+    </div>
+  );
+}
+// --- 2. Component Form Thông Tin (Nâng cấp) ---
+function InfoTab({ user }: { user: UserProfile }) {
+  // State cho các trường
+  const [fullName, setFullName] = useState(user.fullName);
+  const [gender, setGender] = useState(user.gender || "Male");
+  const [city, setCity] = useState(user.city || "");
+
+  // State cho Ngày, Tháng, Năm
+  const [day, setDay] = useState("");
+  const [month, setMonth] = useState("");
+  const [year, setYear] = useState("");
+
+  // Tự động điền ngày sinh khi có dữ liệu
+  useEffect(() => {
+    if (user.dob) {
+      const date = new Date(user.dob);
+      setDay(date.getDate().toString());
+      setMonth((date.getMonth() + 1).toString()); // getMonth() là 0-11
+      setYear(date.getFullYear().toString());
+    }
+  }, [user.dob]);
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Gộp ngày sinh lại
+      const dob = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+      const profileData = { fullName, gender, city, dob };
+
+      // TODO: Gọi API cập nhật profile
+      // await authApi.updateProfile(profileData, accessToken);
+      console.log("Dữ liệu cập nhật:", profileData);
+      alert("Cập nhật thành công! (giả lập)");
+    } catch (error) {
+      alert("Cập nhật thất bại!");
+    }
+  };
+
+  // Dữ liệu cho dropdown ngày sinh
+  const days = Array.from({ length: 31 }, (_, i) => i + 1);
+  const months = [
+    { value: 1, label: "Tháng Một" },
+    { value: 2, label: "Tháng Hai" },
+    { value: 3, label: "Tháng Ba" },
+    { value: 4, label: "Tháng Tư" },
+    { value: 5, label: "Tháng Năm" },
+    { value: 6, label: "Tháng Sáu" },
+    { value: 7, label: "Tháng Bảy" },
+    { value: 8, label: "Tháng Tám" },
+    { value: 9, label: "Tháng Chín" },
+    { value: 10, label: "Tháng Mười" },
+    { value: 11, label: "Tháng Mười Một" },
+    { value: 12, label: "Tháng Mười Hai" },
+  ];
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
+
+  return (
+    // Sử dụng Fragment để trả về nhiều card
+    <>
+      {/* Card Dữ liệu cá nhân */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Dữ liệu cá nhân
+        </h2>
+        <form onSubmit={handleUpdateProfile} className="space-y-5">
+          {/* Tên đầy đủ */}
+          <div>
+            <label
+              htmlFor="fullName"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Tên đầy đủ
+            </label>
+            <input
+              type="text"
+              id="fullName"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Tên trong hồ sơ được rút ngắn từ họ tên của bạn.
+            </p>
+          </div>
+
+          {/* Giới tính & Ngày sinh */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label
+                htmlFor="gender"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Giới tính
+              </label>
+              <select
+                id="gender"
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              >
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Khác</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Ngày sinh
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <select
+                  value={day}
+                  onChange={(e) => setDay(e.target.value)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                >
+                  <option value="" disabled>
+                    Ngày
+                  </option>
+                  {days.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                >
+                  <option value="" disabled>
+                    Tháng
+                  </option>
+                  {months.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                >
+                  <option value="" disabled>
+                    Năm
+                  </option>
+                  {years.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Thành phố cư trú */}
+          <div>
+            <label
+              htmlFor="city"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Thành phố cư trú
+            </label>
+            <input
+              type="text"
+              id="city"
+              placeholder="Thành phố cư trú"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Nút Lưu */}
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-transparent rounded-md hover:bg-gray-200"
+            >
+              Có lẽ để sau
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700"
+            >
+              Lưu
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Card Email */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6">
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="text-lg font-semibold text-gray-900">Email</h2>
+          <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50">
+            <Plus size={16} /> Thêm email
+          </button>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Chỉ có thể sử dụng tối đa 3 email
+        </p>
+        <div className="font-medium text-gray-800">
+          1. {user.email}{" "}
+          <span className="ml-2 text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+            Nơi nhận thông báo
+          </span>
+        </div>
+        {/* TODO: Dùng .map() để render danh sách user.emails */}
+      </div>
+
+      {/* Card Số di động */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mt-6">
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="text-lg font-semibold text-gray-900">Số di động</h2>
+          <button className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50">
+            <Plus size={16} /> Thêm số di động
+          </button>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Chỉ có thể sử dụng tối đa 3 số di động
+        </p>
+        <div className="font-medium text-gray-800">1. {user.phone}</div>
+        {/* TODO: Dùng .map() để render danh sách user.phoneNumbers */}
+      </div>
+    </>
+  );
+}
+
+// --- Component Form Mật Khẩu (Giữ nguyên) ---
+function PasswordTab() {
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await authApi.changePassword(oldPassword, newPassword);
+      alert("Đổi mật khẩu thành công!");
+      setOldPassword("");
+      setNewPassword("");
+    } catch (error) {
+      console.error(error);
+      alert("Đổi mật khẩu thất bại!");
+    }
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Đổi mật khẩu</h2>
+      <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+        <div>
+          <label
+            htmlFor="oldPassword"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Mật khẩu cũ
+          </label>
+          <input
+            type="password"
+            id="oldPassword"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="newPassword"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Mật khẩu mới
+          </label>
+          <input
+            type="password"
+            id="newPassword"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+        <div className="flex justify-end pt-4">
+          <button
+            type="submit"
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700"
+          >
+            Lưu thay đổi
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// --- Trang Chính (Page) ---
+export default function ProfileSettingsPage() {
+  const [activeTab, setActiveTab] = useState("info");
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const accessToken = useAuthStore((s) => s.token.accessToken);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    const fetchUser = async () => {
+      try {
+        setLoading(true);
+        const userData = await authApi.getProfile(accessToken); // <-- đã là UserProfile
+        setUser(userData);
+      } catch (error) {
+        console.error("Lỗi tải profile:", error);
+      } finally {
+        setLoading(false);
+      }
     };
+    fetchUser();
+  }, [accessToken]);
+
+  if (loading) {
+    return <div>Đang tải thông tin người dùng...</div>;
   }
 
+  if (!user) {
+    return <div>Không thể tải thông tin người dùng.</div>;
+  }
 
-export default async function ProfilePage({params}:Props) {
+  return (
+    <div className="w-full max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Cài đặt</h1>
+      <ProfileTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-    const { id } = params;
-    const user = users.find((u)=>u.id === 'user_1')
-    if (!user) return notFound()
-
-    return <>
-    <BackgroundBlur />
-    <div className="flex flex-col">
-        <div id="banner" className='relative m-8 w-[95%] m mx-auto'>
-            <img src={user.cover} alt="" className='w-full h-[300px] object-cover rounded-3xl' />
-            <span className='absolute top-4 right-4 bg-[#FFFFFF4D] px-4 py-2 rounded-lg text-xl text-white'>My Profile</span>
-
-            <span className='absolute top-4 left-4 bg-[#FFFFFF4D] px-4 py-2 rounded-lg text-xl text-black'>My Data</span>
-        </div>
-        <div id='bottom__section' className="grid grid-cols-1 md:grid-cols-[30%_70%] w-[92%] mx-auto">        
-            <div id='left__container' className='bg-white border border-[#E0E2E7] rounded-sm shadow-[0px_2px_2.67px_0px_#1018281A]'>
-                <div id="img__container" className="flex flex-col relative  m-1 rounded-sm">
-                    <img src={user.cover} alt="" className='h-40 w-full object-cover' /> 
-                    <img src={user.avatar} alt="" className='rounded-full h-20 w-20 absolute left-1/2 -translate-x-1/2 -bottom-10 bg-gray-400 border-4 border-white z-10'/>   
-                </div>
-
-                <div className="flex mt-12 justify-center gap-2 items-center">
-                        <h2>{user.username}</h2>
-                        <span className='block p-1 bg-[#EFEFFD] text-(--primary) px-1 rounded-3xl'>{user.badges}</span>
-                </div> 
-
-                <span className="block h-px overflow-hidden bg-gray-400 my-8 origin-top scale-y-20"/>
-
-                <div className="flex gap-4 items-center w-[95%] mx-auto">
-                    <i className="ri-mail-line h-8 w-8 flex items-center justify-center text-[#667085] bg-[#E0E2E7] rounded-full text-lg border border-4 border-[#F0F1F3]"></i>
-                    <div className='flex-1'>
-                        <div className="flex justify-between">
-                            <h4 className='text-[#4D5464]'>Email</h4>
-                            <button className='bg-[#EFEFFD] text-[#00000033] rounded-3xl px-1'>Chỉnh sửa</button>
-                        </div>                        
-                        <span>{user.email}</span>
-                    </div>                 
-                </div>
-
-                <div className="flex gap-4 items-center w-[95%] mx-auto mt-4">
-                    <i className="ri-phone-line h-8 w-8 flex items-center justify-center text-[#667085] bg-[#E0E2E7] rounded-full text-lg border border-4 border-[#F0F1F3]"></i>
-                    <div className='flex-1'>
-                        <div className="flex justify-between">
-                            <h4 className='text-[#4D5464]'>Phone</h4>
-                            <button className='bg-[#EFEFFD] text-[#00000033] rounded-3xl px-1'>Chỉnh sửa</button>
-                        </div>                        
-                        <span>{user.phone}</span>
-                    </div>                 
-                </div>
-
-                <div className="flex justify-center my-2">
-                    <button className='btn-primary text-white my-4 px-6 py-2 rounded-2xl'>Khoá tài khoản</button>
-                </div>
-            </div>    
-
-            <div id="info__container">
-                <div id="card__groud" className='grid grid-cols-3 w-full justify-between gap-3 lg:gap-6 p-4 mb-6'>
-                    <div className="flex flex-col p-4 bg-white border border-[#E0E2E7] rounded-md shadow-[0px_2px_2.67px_0px_#1018281A] ">
-                        <i className="ri-navigation-line rotate-90 h-8 w-8 flex items-center justify-center text-[#0D894F] bg-[#CFE7DC] rounded-full text-lg border border-4 border-[#E7F4EE]"></i>
-                        <span className='text-[#667085] h-[72px] sm:h-[24px]'>Điểm đến</span>
-                        <span>{user.totalPoints}</span>
-                    </div>
-                    <div className="flex flex-col p-4 bg-white border border-[#E0E2E7] rounded-md shadow-[0px_2px_2.67px_0px_#1018281A]">
-                        <i className="ri-file-text-fill h-8 w-8 flex items-center justify-center text-[#E46A11] bg-[#FAE1CF] rounded-full text-lg border border-4 border-[#FDF1E8]"></i>
-                        <span className='text-[#667085] h-[72px] sm:h-[24px]'>Bài viết</span>
-                        <span>{user.totalPoints}</span>
-                    </div>
-                    <div className="flex flex-col p-4 bg-white border border-[#E0E2E7] rounded-md shadow-[0px_2px_2.67px_0px_#1018281A]">
-                        <i className="ri-verified-badge-line h-8 w-8 flex items-center justify-center text-(--primary) bg-[#DEDEFA] rounded-full text-lg border border-4 border-[#EFEFFD]"></i>
-                        <span className='text-[#667085] h-[72px] sm:h-[24px]'>Bài đánh giá</span>
-                        <span>{user.totalPoints}</span>
-                    </div>
-                </div>
-
-                <div id="post__container" className='m-4 border border-[#E0E2E7] shadow-[0px_2px_2.67px_0px_#1018281A] p-4' >
-                    <div className="flex justify-between w-[95%] mx-auto">
-                        <h4>Bài đăng gần đây</h4>
-                        <div className="flex justify-center items-center px-2 border border-[#E0E2E7] rounded-xl">
-                            <i className="ri-sound-module-line"></i>
-                        </div>
-                    </div>
-                    
-                    <PostTable data={posts.filter(p => p.username === 'user_1')} />
-
-                </div>
-
-            </div>
-
-           
-           
-        </div>
-
+      {activeTab === "info" && <InfoTab user={user} />}
+      {activeTab === "password" && <PasswordTab />}
     </div>
-
-    
-    </>
+  );
 }

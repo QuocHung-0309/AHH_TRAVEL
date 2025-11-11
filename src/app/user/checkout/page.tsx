@@ -1,18 +1,29 @@
+// /app/user/checkout/page.tsx
 "use client";
 
-import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import * as React from "react";
+import Link from "next/link";
 import Image from "next/image";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useGetTourById } from "#/hooks/tours-hook/useTourDetail";
+import { useRouter, useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  getCheckoutQuote,
-  createCheckout,
-  type CheckoutQuoteResponse,
-  type CheckoutCreateResponse,
-} from "#/apis/checkout/api-checkout";
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Loader2,
+  AlertCircle,
+  Building,
+} from "lucide-react";
 
-/* ===== Helpers ===== */
+import { useGetTourById } from "#/hooks/tours-hook/useTourDetail";
+import { createBooking } from "@/lib/checkout/checkoutApi";
+import type {
+  CreateBookingBody,
+  PaymentMethodFE,
+} from "@/lib/checkout/checkoutApi";
+
+/* ========== Helpers ========== */
 const toNum = (v?: number | string) => {
   if (typeof v === "number") return v;
   if (typeof v === "string") {
@@ -22,14 +33,20 @@ const toNum = (v?: number | string) => {
 };
 const vnd = (n?: number) =>
   typeof n === "number"
-    ? new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 })
+    ? new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+        maximumFractionDigits: 0,
+      })
         .format(n)
-        .replace(/\s?₫$/, "VNĐ")
+        .replace(/\s?₫$/, " VNĐ")
     : "—";
-
+const dmy = (d?: string) => (d ? new Date(d).toLocaleDateString("vi-VN") : "—");
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-const isPhoneVN = (s: string) => /^(\+?84|0)(\d{9,10})$/.test(s.replace(/\s+/g, ""));
+const isPhoneVN = (s: string) =>
+  /^(\+?84|0)(\d{9,10})$/.test(s.replace(/\s+/g, ""));
 
+/* ========== Page ========== */
 export default function CheckoutPage() {
   const search = useSearchParams();
   const router = useRouter();
@@ -40,450 +57,603 @@ export default function CheckoutPage() {
 
   const { data: tour, isLoading, isError } = useGetTourById(id);
 
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  // Form state
+  const [formData, setFormData] = React.useState({
+    fullName: "",
+    phone: "",
+    email: "",
+    address: "",
+  });
+  const [adults, setAdults] = React.useState(initAdults);
+  const [children, setChildren] = React.useState(initChildren);
+  const [paymentMethod] = React.useState<PaymentMethodFE>("office-payment"); // chỉ 1 lựa chọn
+  const [errors, setErrors] = React.useState<
+    Partial<Record<keyof typeof formData | "submit", string>>
+  >({});
+  const [submitting, setSubmitting] = React.useState(false);
 
-  const [adults, setAdults] = useState(initAdults);
-  const [children, setChildren] = useState(initChildren);
-
+  // Giá
   const priceAdult = toNum(tour?.priceAdult) ?? 0;
   const priceChild = toNum(tour?.priceChild) ?? 0;
+  const coverImg =
+    tour?.images?.[0] || tour?.image || tour?.cover || "/hot1.jpg";
 
-  const [quote, setQuote] = useState<CheckoutQuoteResponse | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
-  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const listed = adults * priceAdult + children * priceChild;
+  const totalDisplay = listed;
 
-  const [coupon, setCoupon] = useState("");
-  const [couponMsg, setCouponMsg] = useState<string | null>(null);
-  const [couponLoading, setCouponLoading] = useState(false);
-
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const fallbackTotal = useMemo(
-    () => adults * priceAdult + children * priceChild,
-    [adults, children, priceAdult, priceChild],
-  );
-
-  useEffect(() => {
-    let ignore = false;
-    if (!id) return;
-    (async () => {
-      try {
-        setQuoteLoading(true);
-        setQuoteError(null);
-        const q = await getCheckoutQuote({
-          tourId: id,
-          guests: { adults, children },
-          pricing: { priceAdult, priceChild },
-          couponCode: coupon || null,
-        });
-        if (!ignore) setQuote(q);
-      } catch (e: any) {
-        if (!ignore) {
-          setQuote(null);
-          setQuoteError(
-            typeof e?.response?.data === "string"
-              ? e.response.data
-              : e?.response?.data?.message || "Không lấy được tạm tính từ hệ thống.",
-          );
-        }
-      } finally {
-        if (!ignore) setQuoteLoading(false);
-      }
-    })();
-    return () => { ignore = true; };
-  }, [id, adults, children, coupon, priceAdult, priceChild]);
-
-  const onApplyCoupon = async () => {
-    if (!coupon) { setCouponMsg("Vui lòng nhập mã."); return; }
-    try {
-      setCouponLoading(true);
-      setCouponMsg("Đang áp mã…");
-      setCouponMsg("Đã áp mã (nếu hợp lệ).");
-    } finally {
-      setCouponLoading(false);
-    }
+  // Validation
+  const validateField = (name: keyof typeof formData, value: string) => {
+    if (name !== "address" && !value.trim()) return "Vui lòng không để trống.";
+    if (name === "email" && !isEmail(value)) return "Email không hợp lệ.";
+    if (name === "phone" && !isPhoneVN(value))
+      return "Số điện thoại không hợp lệ.";
+    return undefined;
+  };
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name, value } = e.target as {
+      name: keyof typeof formData;
+      value: string;
+    };
+    const error = validateField(name, value);
+    setErrors((prev) => ({ ...prev, [name]: error, submit: undefined }));
+  };
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target as {
+      name: keyof typeof formData;
+      value: string;
+    };
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name])
+      setErrors((prev) => ({ ...prev, [name]: undefined, submit: undefined }));
   };
 
-  const totalFromQuote = quote?.breakdown?.total;
-  const discountFromQuote = quote?.breakdown?.discount?.amount || 0;
-
+  // Submit
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitError(null);
-    if (!fullName.trim()) { setSubmitError("Vui lòng nhập họ tên."); return; }
-    if (!isPhoneVN(phone)) { setSubmitError("Số điện thoại không hợp lệ (VD: 0912345678 hoặc +84912345678)."); return; }
-    if (!isEmail(email)) { setSubmitError("Email không hợp lệ."); return; }
+    setErrors({});
 
-    const total = typeof totalFromQuote === "number" ? totalFromQuote : fallbackTotal;
+    // validate all
+    const newErrors: typeof errors = {};
+    let hasError = false;
+    (Object.keys(formData) as Array<keyof typeof formData>).forEach((k) => {
+      if (k === "address") return;
+      const msg = validateField(k, formData[k]);
+      if (msg) {
+        newErrors[k] = msg;
+        hasError = true;
+      }
+    });
+    if (hasError) {
+      setErrors(newErrors);
+      return;
+    }
 
-    const payload = {
+    const total = Number(totalDisplay) || 0;
+
+    const payload: CreateBookingBody = {
       tourId: String(tour?._id ?? id),
-      contact: { fullName: fullName.trim(), phone: phone.trim(), email: email.trim() },
-      guests: { adults: Number(adults) || 1, children: Number(children) || 0 },
-      pricing: { priceAdult: Number(priceAdult) || 0, priceChild: Number(priceChild) || 0, total: Number(total) || 0 },
-      couponCode: coupon || null,
-      meta: {
-        title: tour?.title,
-        destination: tour?.destination,
-        startDate: tour?.startDate,
-        endDate: tour?.endDate,
-        time: tour?.time,
+      contact: {
+        fullName: formData.fullName.trim(),
+        phone: formData.phone.trim(),
+        email: formData.email.trim(),
+        address: formData.address.trim() || undefined,
       },
+      guests: { adults: Number(adults) || 1, children: Number(children) || 0 },
+      pricing: {
+        priceAdult: Number(priceAdult) || 0,
+        priceChild: Number(priceChild) || 0,
+        total,
+      },
+      paymentMethod, // FE value; API đã map -> "office"
+      couponCode: null,
     };
 
     try {
       setSubmitting(true);
-      const res: CheckoutCreateResponse = await createCheckout(payload as any);
-      if (res?.payment?.redirectUrl) { window.location.href = res.payment.redirectUrl; return; }
-      if (res?.ok) { router.replace("/user/checkout/success"); return; }
-      setSubmitError("Không tạo được đơn đặt chỗ. Vui lòng thử lại sau.");
-    } catch (e: any) {
-      const status = e?.response?.status;
-      const msg =
-        typeof e?.response?.data === "string"
-          ? e.response.data
-          : e?.response?.data?.message || "Đặt chỗ thất bại. Bạn thử lại giúp mình nhé!";
-      setSubmitError(status ? `Lỗi ${status}: ${msg}` : msg);
+      const res = await createBooking(payload);
+
+      // Không có redirect vì "office", nhưng vẫn để phòng sau này có deposit
+      if (res?.payment?.redirectUrl) {
+        window.location.href = res.payment.redirectUrl;
+        return;
+      }
+
+      if (res?.code) {
+        const sp = new URLSearchParams();
+        sp.append("bookingId", res.code);
+        sp.append("email", payload.contact.email);
+        router.replace(`/user/checkout/success?${sp.toString()}`);
+        return;
+      }
+
+      setErrors({ submit: "Không tạo được đơn đặt chỗ. Vui lòng thử lại." });
+    } catch (err: any) {
+      setErrors({
+        submit: err?.message || "Đặt chỗ thất bại. Vui lòng thử lại sau.",
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (!id) return <div className="mx-auto max-w-6xl px-5 py-12">Thiếu mã tour.</div>;
-  if (isLoading) {
+  // Loading/Error tour
+  if (!id)
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
+      <div className="mx-auto max-w-[1200px] px-4 py-10">Thiếu mã tour.</div>
+    );
+  if (isLoading)
+    return (
+      <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 animate-spin rounded-full border-4 border-[var(--brand-primary)]/20 border-t-[var(--brand-primary)]"></div>
-          <p className="mt-4 text-lg text-slate-600">Đang tải thông tin tour...</p>
+          <div className="mx-auto h-14 w-14 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600"></div>
+          <p className="mt-4 text-slate-600">Đang tải thông tin tour…</p>
         </div>
       </div>
     );
-  }
-  if (isError || !tour) return <div className="mx-auto max-w-6xl px-5 py-12">Không tìm thấy tour.</div>;
+  if (isError || !tour)
+    return (
+      <div className="mx-auto max-w-[1200px] px-4 py-10">
+        Không tìm thấy tour.
+      </div>
+    );
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Không dùng header ở đây vì trang đã có header chung */}
+    <main className="mx-auto max-w-[1200px] px-4 py-10">
+      {/* Banner mini + breadcrumb */}
+      <motion.section
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="mb-6 rounded-2xl border border-slate-200 bg-gradient-to-r from-emerald-50 to-white p-5"
+      >
+        <nav className="text-sm text-slate-600">
+          <Crumb href="/">Trang chủ</Crumb> /{" "}
+          <Crumb href="/user">Tài khoản</Crumb> /{" "}
+          <span className="font-medium text-slate-900">Đặt tour</span>
+        </nav>
+        <h1 className="mt-2 text-[26px] font-extrabold tracking-tight text-slate-900">
+          Tổng quan chuyến đi
+        </h1>
+        <p className="text-slate-600">
+          {tour.title} • {tour.destination ?? "Điểm đến"} —{" "}
+          {dmy(tour.startDate)} → {dmy(tour.endDate)}
+        </p>
+      </motion.section>
 
-      <main className="mx-auto max-w-7xl px-5 py-8 md:py-12">
-        {/* Steps */}
-        <div className="mb-8">
-          <div className="mx-auto flex max-w-lg items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--brand-primary)] text-white">✓</div>
-              <span className="text-sm font-medium text-slate-800">Thông tin</span>
-            </div>
-            <div className="h-px w-12 bg-slate-300/60" />
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--brand-accent)]/10 text-[var(--brand-accent)]">2</div>
-              <span className="text-sm text-slate-600">Thanh toán</span>
-            </div>
-            <div className="h-px w-12 bg-slate-300/60" />
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500">3</div>
-              <span className="text-sm text-slate-600">Hoàn tất</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
-          {/* LEFT: form */}
-          <form onSubmit={onSubmit} className="space-y-6">
-            {/* Thông tin liên hệ */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_-15px_rgba(0,0,0,.12)] md:p-8">
-              <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">Thông tin liên hệ</h2>
-                  <p className="text-sm text-slate-500">Chúng tôi sẽ gửi xác nhận qua email</p>
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Họ và tên *</label>
-                  <input
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/20"
-                    placeholder="Nguyễn Văn A"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Số điện thoại *</label>
-                  <input
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/20"
-                    placeholder="0912 345 678"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Email *</label>
-                  <input
-                    type="email"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/20"
-                    placeholder="email@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-              {submitError && <p className="mt-4 text-sm font-medium text-[var(--brand-accent)]">{submitError}</p>}
-            </section>
-
-            {/* Hành khách */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_-15px_rgba(0,0,0,.12)] md:p-8">
-              <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand-accent)]/10 text-[var(--brand-accent)]">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">Số lượng hành khách</h2>
-                  <p className="text-sm text-slate-500">Chọn số người tham gia tour</p>
-                </div>
-              </div>
-
-              <div className="grid gap-4">
-                {/* Người lớn */}
-                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]">
-                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="font-semibold text-slate-900">Người lớn</div>
-                      <div className="text-sm text-slate-500">Từ 12 tuổi trở lên</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      className="h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-40"
-                      onClick={() => setAdults(Math.max(1, adults - 1))}
-                      disabled={adults <= 1}
-                    >
-                      −
-                    </button>
-                    <span className="w-8 text-center text-lg font-bold text-slate-900">{adults}</span>
-                    <button
-                      type="button"
-                      className="h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-                      onClick={() => setAdults(adults + 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Trẻ em */}
-                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--brand-accent)]/10 text-[var(--brand-accent)]">
-                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="font-semibold text-slate-900">Trẻ em</div>
-                      <div className="text-sm text-slate-500">Dưới 12 tuổi</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      className="h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-[var(--brand-accent)] hover:text-[var(--brand-accent)] disabled:opacity-40"
-                      onClick={() => setChildren(Math.max(0, children - 1))}
-                      disabled={children <= 0}
-                    >
-                      −
-                    </button>
-                    <span className="w-8 text-center text-lg font-bold text-slate-900">{children}</span>
-                    <button
-                      type="button"
-                      className="h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:border-[var(--brand-accent)] hover:text-[var(--brand-accent)]"
-                      onClick={() => setChildren(children + 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Coupon */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 md:p-8">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand-accent)]/10 text-[var(--brand-accent)]">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">Mã giảm giá</h2>
-                  <p className="text-sm text-slate-600">Nhập mã để nhận ưu đãi</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  className="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-[var(--brand-accent)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-accent)]/20"
-                  placeholder="Nhập mã (ví dụ: AHH10)"
-                  value={coupon}
-                  onChange={(e) => setCoupon(e.target.value.trim().toUpperCase())}
+      {/* Layout 2 cột */}
+      <form
+        onSubmit={onSubmit}
+        className="grid grid-cols-1 gap-8 lg:grid-cols-12"
+      >
+        {/* LEFT */}
+        <div className="space-y-8 lg:col-span-7">
+          {/* Thông tin liên lạc */}
+          <Card>
+            <h2 className="section-title mb-4">Thông tin liên lạc</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Họ và tên *" error={errors.fullName}>
+                <Input
+                  name="fullName"
+                  placeholder="Nguyễn Văn A"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  required
+                  icon={<User size={18} />}
+                  aria-invalid={!!errors.fullName}
                 />
-                <button
-                  type="button"
-                  onClick={onApplyCoupon}
-                  disabled={couponLoading || !coupon}
-                  className="rounded-2xl bg-[var(--brand-accent)] px-6 py-3 font-semibold text-white shadow transition hover:brightness-110 disabled:opacity-50"
-                >
-                  {couponLoading ? "..." : "Áp dụng"}
-                </button>
-              </div>
-              {couponMsg && <p className="mt-3 text-sm font-medium text-[var(--brand-accent)]">{couponMsg}</p>}
-            </section>
-
-            {/* Payment */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_-15px_rgba(0,0,0,.1)] md:p-8">
-              <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">Phương thức thanh toán</h2>
-                  <p className="text-sm text-slate-500">Chuyển khoản ngân hàng</p>
-                </div>
-              </div>
-              <label className="flex cursor-pointer items-center gap-4 rounded-2xl border-2 border-[var(--brand-primary)]/70 bg-[var(--brand-primary)]/5 p-4 text-[var(--brand-primary)]">
-                <input type="radio" name="pm" defaultChecked className="h-5 w-5 text-[var(--brand-primary)]" />
-                <span>Chuyển khoản ngân hàng (xác nhận qua điện thoại)</span>
-              </label>
-            </section>
-
-            {/* Submit */}
-            <div className="space-y-2">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-[var(--brand-primary)] to-[var(--brand-accent)] px-8 py-4 text-lg font-bold text-white shadow-md transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60"
-              >
-                <span className="relative z-10 flex items-center justify-center gap-2">
-                  {submitting ? "Đang tạo đơn…" : "Xác nhận đặt chỗ"}
-                  {!submitting && (
-                    <svg className="h-5 w-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  )}
-                </span>
-                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-              </button>
-              {submitError && <p className="text-sm text-red-600">{submitError}</p>}
+              </Field>
+              <Field label="Email *" error={errors.email}>
+                <Input
+                  name="email"
+                  type="email"
+                  placeholder="email@example.com"
+                  value={formData.email}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  required
+                  icon={<Mail size={18} />}
+                  aria-invalid={!!errors.email}
+                />
+              </Field>
+              <Field label="Số điện thoại *" error={errors.phone}>
+                <Input
+                  name="phone"
+                  placeholder="0912 345 678"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  required
+                  icon={<Phone size={18} />}
+                  aria-invalid={!!errors.phone}
+                />
+              </Field>
+              <Field label="Địa chỉ" error={errors.address}>
+                <Input
+                  name="address"
+                  placeholder="Số nhà, đường, phường/xã, quận/huyện..."
+                  value={formData.address}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  icon={<MapPin size={18} />}
+                  aria-invalid={!!errors.address}
+                />
+              </Field>
             </div>
-          </form>
+          </Card>
 
-          {/* RIGHT: summary */}
-          <aside className="lg:sticky lg:top-24 lg:self-start">
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_18px_40px_-15px_rgba(0,0,0,.15)]">
-              <div className="mb-6">
-                <div className="relative mb-4 aspect-[16/10] overflow-hidden rounded-2xl">
-                  <Image
-                    src={tour?.image ?? tour?.cover ?? "/hot1.jpg"}
-                    alt={tour?.title ?? "tour"}
-                    fill
-                    className="object-cover transition-transform duration-500 hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
-                  <div className="absolute bottom-3 left-3 right-3">
-                    <div className="flex items-center gap-2 text-xs text-white/90">
-                      <span className="font-medium">{tour?.destination}</span>
-                    </div>
-                  </div>
-                </div>
-                <h3 className="mb-1 text-lg font-semibold leading-tight text-slate-900">{tour?.title}</h3>
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <svg className="h-4 w-4 text-[var(--brand-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>{tour?.time}</span>
-                </div>
-              </div>
-
-              <div className="h-px bg-gradient-to-r from-transparent via-slate-300/60 to-transparent" />
-
-              <div className="my-6 space-y-3">
-                <div className="flex items-center justify-between text-base">
-                  <span className="text-slate-600">Người lớn × {adults}</span>
-                  <span className="font-semibold text-slate-900">
-                    {quoteLoading ? "…" : vnd(quote?.breakdown?.adults?.amount ?? adults * priceAdult)}
-                  </span>
-                </div>
-                {children > 0 && (
-                  <div className="flex items-center justify-between text-base">
-                    <span className="text-slate-600">Trẻ em × {children}</span>
-                    <span className="font-semibold text-slate-900">
-                      {quoteLoading ? "…" : vnd(quote?.breakdown?.children?.amount ?? children * priceChild)}
-                    </span>
-                  </div>
-                )}
-                {discountFromQuote > 0 && (
-                  <div className="flex items-center justify-between rounded-xl bg-[var(--brand-accent)]/10 px-3 py-2 text-base">
-                    <span className="font-medium text-[var(--brand-accent)]">Giảm giá</span>
-                    <span className="font-bold text-[var(--brand-accent)]">-{vnd(discountFromQuote)}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="h-px bg-gradient-to-r from-transparent via-slate-300/60 to-transparent" />
-
-              <div className="mt-6 rounded-2xl bg-slate-50 p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold text-slate-900">Tổng thanh toán</span>
-                  <span className="text-2xl font-extrabold text-[var(--brand-primary)]">
-                    {quoteLoading ? "…" : vnd(typeof quote?.breakdown?.total === "number" ? quote.breakdown.total : fallbackTotal)}
-                  </span>
-                </div>
-              </div>
-
-              {quoteError && (
-                <div className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">
-                  {quoteError} — hệ thống sẽ dùng tạm giá niêm yết.
-                </div>
-              )}
-
-              <div className="mt-6 space-y-2 text-sm">
-                <div className="text-slate-600">
-                  Khởi hành:{" "}
-                  <strong className="text-slate-900">
-                    {tour?.startDate ? new Date(tour.startDate).toLocaleDateString("vi-VN") : "—"}
-                  </strong>
-                </div>
-                <div className="text-slate-600">
-                  Kết thúc:{" "}
-                  <strong className="text-slate-900">
-                    {tour?.endDate ? new Date(tour.endDate).toLocaleDateString("vi-VN") : "—"}
-                  </strong>
-                </div>
-              </div>
+          {/* Số lượng hành khách */}
+          <Card>
+            <h2 className="section-title mb-4">Số lượng hành khách</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              <QuantitySelector
+                label="Người lớn"
+                value={adults}
+                onChange={setAdults}
+                min={1}
+              />
+              <QuantitySelector
+                label="Trẻ em"
+                value={children}
+                onChange={setChildren}
+                min={0}
+              />
             </div>
-          </aside>
+          </Card>
+
+          {/* Điều khoản */}
+          <Card>
+            <h2 className="section-title mb-3">Điều khoản & bảo mật</h2>
+            <p className="text-[15px] leading-relaxed text-slate-700">
+              Bằng cách nhấn <b>“Xác nhận đặt chỗ”</b>, bạn chấp thuận điều
+              khoản sử dụng dịch vụ. Vui lòng đọc kỹ trước khi tiếp tục.
+            </p>
+            <label className="mt-3 inline-flex select-none items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                defaultChecked
+                required
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              Tôi đã đọc và đồng ý với{" "}
+              <a className="link" href="#" target="_blank" rel="noreferrer">
+                Điều khoản thanh toán
+              </a>
+            </label>
+          </Card>
+
+          {/* Phương thức thanh toán (chỉ tại văn phòng) */}
+          <Card>
+            <h2 className="section-title mb-4">Phương thức thanh toán</h2>
+            <PayOfficeOnly />
+          </Card>
         </div>
-      </main>
+
+        {/* RIGHT: Tóm tắt + Submit */}
+        <div className="lg:col-span-5 self-start sticky top-6 space-y-8">
+          {/* Thông tin tour */}
+          <Card className="p-5">
+            <div className="flex gap-4">
+              <div className="relative h-24 w-24 flex-shrink-0">
+                <Image
+                  src={coverImg}
+                  alt={tour.title ?? "tour"}
+                  fill
+                  className="object-cover rounded-lg"
+                  sizes="(max-width: 1024px) 100vw, 96px"
+                  onError={(e) =>
+                    ((e.currentTarget as HTMLImageElement).src = "/hot1.jpg")
+                  }
+                />
+              </div>
+              <div className="flex-grow">
+                <h4 className="font-semibold text-slate-800 leading-snug">
+                  {tour.title}
+                </h4>
+                <p className="text-sm text-slate-600 mt-1.5">
+                  Thời gian: <b>{tour.time ?? "—"}</b>
+                </p>
+                <p className="text-sm text-slate-600 mt-1">
+                  Khởi hành: <b>{dmy(tour.startDate)}</b>
+                </p>
+                <p className="text-sm text-slate-600 mt-1">
+                  Kết thúc: <b>{dmy(tour.endDate)}</b>
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Tóm tắt tiền */}
+          <Card className="p-0 overflow-hidden">
+            <div className="p-5 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Tóm tắt đơn hàng
+              </h3>
+            </div>
+            <div className="p-5">
+              <div className="mb-4 border-b pb-4 text-[15px]">
+                <Row label="Người lớn">
+                  <span className="tabular-nums">
+                    {adults.toLocaleString("vi-VN")} × {vnd(priceAdult)}
+                  </span>
+                </Row>
+                {children > 0 && (
+                  <Row label="Trẻ em">
+                    <span className="tabular-nums">
+                      {children.toLocaleString("vi-VN")} × {vnd(priceChild)}
+                    </span>
+                  </Row>
+                )}
+                <Row label={<b>Tổng cộng</b>} strong>
+                  <b className="tabular-nums text-lg">{vnd(totalDisplay)}</b>
+                </Row>
+              </div>
+
+              {/* Lỗi Submit */}
+              <AnimatePresence>
+                {errors.submit && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="mb-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700 overflow-hidden"
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertCircle size={16} className="flex-shrink-0" />
+                      <span>{errors.submit}</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="space-y-2">
+                <Button
+                  type="submit"
+                  full
+                  className="py-3 text-base"
+                  disabled={submitting}
+                >
+                  {submitting ? "Đang tạo đơn..." : "Xác nhận đặt chỗ"}
+                </Button>
+                <Link
+                  href={`/user/destination/${(
+                    tour.destinationSlug ??
+                    (tour.title || "")
+                  )
+                    .toString()
+                    .toLowerCase()
+                    .replace(/\s+/g, "-")}/${tour._id ?? id}`}
+                  className="block text-center text-sm text-slate-600 underline underline-offset-2 hover:text-slate-800"
+                >
+                  Xem chi tiết tour
+                </Link>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </form>
+    </main>
+  );
+}
+
+/* ========== UI bits ========== */
+function Crumb(props: React.ComponentProps<typeof Link>) {
+  return (
+    <Link
+      {...props}
+      className="rounded px-1 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+    />
+  );
+}
+function Card({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.2 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_-15px_rgba(2,6,23,0.18)] ${className}`}
+    >
+      {children}
+    </motion.section>
+  );
+}
+function Field({
+  label,
+  children,
+  error,
+}: {
+  label: string;
+  children: React.ReactNode;
+  error?: string;
+}) {
+  const id = React.useId();
+  return (
+    <label className="block" htmlFor={id}>
+      <span className="block text-[13px] font-medium text-slate-600">
+        {label}
+      </span>
+      <div className="mt-1">
+        {React.cloneElement(children as React.ReactElement, { id })}
+      </div>
+      <AnimatePresence>
+        {error && (
+          <motion.p
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mt-1 text-xs font-medium text-rose-600 overflow-hidden"
+            role="alert"
+          >
+            {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </label>
+  );
+}
+function Row({
+  label,
+  children,
+  strong,
+  className = "",
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+  strong?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={`flex items-center justify-between py-1.5 ${className}`}>
+      <span
+        className={`text-slate-600 ${
+          strong ? "font-semibold text-slate-900" : ""
+        }`}
+      >
+        {label}
+      </span>
+      <span className={`text-slate-800 ${strong ? "font-semibold" : ""}`}>
+        {children}
+      </span>
     </div>
+  );
+}
+function Button({
+  variant = "primary",
+  full,
+  className = "",
+  children,
+  ...rest
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "soft" | "danger";
+  full?: boolean;
+}) {
+  const base =
+    "relative inline-flex items-center justify-center rounded-2xl px-5 py-2.5 text-sm font-semibold transition outline-none focus-visible:ring-2 focus-visible:ring-offset-0 disabled:opacity-60";
+  const styles: Record<string, string> = {
+    primary:
+      "bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-400",
+    soft: "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-emerald-400",
+    danger:
+      "bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-rose-400",
+  };
+  return (
+    <motion.button
+      whileTap={{ scale: 0.98 }}
+      whileHover={{ y: -1 }}
+      className={`${base} ${styles[variant]} ${
+        full ? "w-full" : ""
+      } ${className}`}
+      {...rest}
+    >
+      {children}
+    </motion.button>
+  );
+}
+function Input({
+  icon,
+  className = "",
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { icon?: React.ReactNode }) {
+  const hasError = (props as any)["aria-invalid"];
+  return (
+    <div className="relative">
+      {icon && (
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+          <span className="text-slate-400">{icon}</span>
+        </div>
+      )}
+      <input
+        {...props}
+        className={`w-full rounded-xl border bg-white px-3 py-2 text-[15px] text-slate-800 placeholder:text-slate-400 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 disabled:opacity-100 ${
+          icon ? "pl-10" : ""
+        } ${
+          hasError
+            ? "border-rose-400 ring-1 ring-rose-400 focus-visible:ring-rose-400"
+            : "border-slate-200 focus-visible:ring-emerald-400"
+        } ${className}`}
+      />
+    </div>
+  );
+}
+function QuantitySelector({
+  label,
+  value,
+  onChange,
+  min = 0,
+  max = 99,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+}) {
+  return (
+    <Field label={label}>
+      <div className="flex items-center gap-3">
+        <StepButton
+          onClick={() => onChange(Math.max(min, value - 1))}
+          disabled={value <= min}
+        />
+        <span className="w-10 text-center text-lg font-bold tabular-nums">
+          {value}
+        </span>
+        <StepButton
+          onClick={() => onChange(Math.min(max, value + 1))}
+          disabled={value >= max}
+          plus
+        />
+      </div>
+    </Field>
+  );
+}
+function StepButton({
+  plus,
+  disabled,
+  onClick,
+}: {
+  plus?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`h-10 w-10 rounded-xl border text-slate-700 transition ${
+        plus
+          ? "border-emerald-300 hover:bg-emerald-50 active:bg-emerald-100"
+          : "border-slate-200 hover:bg-slate-50 active:bg-slate-100"
+      } disabled:opacity-40`}
+    >
+      {plus ? "+" : "−"}
+    </button>
+  );
+}
+function PayOfficeOnly() {
+  return (
+    <label className="flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm transition border-emerald-500 bg-emerald-50/60 ring-1 ring-emerald-500">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/clients/assets/images/contact/icon.png"
+        alt=""
+        className="h-6 w-6 rounded object-cover"
+      />
+      <input
+        type="radio"
+        name="paymentMethod"
+        value="office-payment"
+        defaultChecked
+        className="h-4 w-4 border-slate-300 text-emerald-600 focus:ring-emerald-500"
+      />
+      <span className="font-medium text-slate-800">Tại văn phòng</span>
+    </label>
   );
 }

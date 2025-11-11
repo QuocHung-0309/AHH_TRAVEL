@@ -1,6 +1,6 @@
 // src/hooks/tours-hook/useTours.ts
 import { useQuery } from "@tanstack/react-query";
-import { getTours, type ToursResponse, type ToursQuery } from "#/apis/tours/tour";
+import { getTours, type ToursResponse, type ToursQuery } from "#/src/lib/tours/tour";
 
 /** Hook danh sách tour có phân trang & query */
 export const useGetTours = (page = 1, limit = 12, query?: ToursQuery) =>

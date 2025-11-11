@@ -1,67 +1,71 @@
+// /components/layout/Header.tsx
 "use client";
 
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, MoreHorizontal } from "lucide-react"; // ⬅️ thay react-icons
+import { ChevronDown, LogOut, List, Settings, CreditCard } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { useEffect, useRef, useState } from "react";
 import { authApi } from "@/lib/auth/authApi";
+import { useAuthStore } from "#/stores/auth";
 
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const accessToken = useAuthStore((s) => s.token.accessToken ?? "");
+  const resetAuth = useAuthStore((s) => s.resetAuth);
+  const setUserId = useAuthStore((s) => s.setUserId);
+
+  const [mounted, setMounted] = useState(false);
+  const isLoggedIn = mounted && !!accessToken;
+
   const [firstName, setFirstName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("/Image.svg");
+  const [memberStatus, setMemberStatus] = useState("Thành viên");
 
   const [avatarOpen, setAvatarOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const avatarRef = useRef<HTMLDivElement | null>(null);
-  const mobileMenuRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const token = localStorage.getItem("accessToken");
-    if (!token) return;
-    authApi
-      .getProfile(token)
-      .then((res) => {
-        if (res?.user) {
-          setIsLoggedIn(true);
-          if (res.user.fullName) {
-            const nameParts = res.user.fullName.trim().split(" ");
-            setFirstName(nameParts[0] || "");
-          }
-          if (res.user.avatar) setAvatarUrl(res.user.avatar);
-        }
-      })
-      .catch(() => {
-        setIsLoggedIn(false);
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("userId");
-      });
-  }, []);
+  useEffect(() => setMounted(true), []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("userId");
-    setIsLoggedIn(false);
-    setFirstName("");
-    setAvatarUrl("/Image.svg");
-    router.push("/auth/login");
+  // Fetch profile khi có token (và khi đổi route – để luôn sync)
+  const loadProfile = async (token: string) => {
+    try {
+      const u = await authApi.getProfile(token);
+      const full = (u.fullName || "").trim();
+      const parts = full.split(/\s+/);
+
+      setFirstName(parts[parts.length - 1] || full);
+      setAvatarUrl(u.avatar || "/Image.svg");
+      setMemberStatus(u.memberStatus || "Thành viên");
+      setUserId(u.id);
+    } catch (e: any) {
+      const status = e?.response?.status;
+      console.warn("getProfile (Header) failed", status, e?.message);
+
+      // ❗️Chỉ logout khi token thật sự không hợp lệ
+      if (status === 401 || status === 403) {
+        resetAuth();
+        router.push("/auth/login");
+      }
+      // Các lỗi khác (network/CORS): không xoá token, chỉ ẩn UI user
+    }
   };
 
   useEffect(() => {
-    const onClickOutside = (e: MouseEvent) => {
-      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) setAvatarOpen(false);
-      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) setMobileMenuOpen(false);
-    };
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, []);
+    if (!mounted) return;
+    if (accessToken) {
+      loadProfile(accessToken);
+    } else {
+      setFirstName("");
+      setAvatarUrl("/Image.svg");
+      setMemberStatus("Thành viên");
+      setUserId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, accessToken, pathname]);
 
   const navItems = [
     { label: "Trang chủ", href: "/" },
@@ -70,22 +74,41 @@ export default function Header() {
   ];
 
   const isActive = (href: string) =>
-    href === "/" ? pathname === "/" || pathname === "/user/home" : pathname === href;
+    href === "/"
+      ? pathname === "/" || pathname === "/user/home"
+      : pathname.startsWith(href);
+
+  const dropdownItems = [
+    { name: "Cài đặt", href: "/user/profile", icon: Settings },
+    { name: "Đặt chỗ của tôi", href: "/user/bookings", icon: List },
+    { name: "Thẻ của tôi", href: "/user/cards", icon: CreditCard },
+  ];
+
+  const handleLogout = () => {
+    resetAuth(); // Xoá toàn bộ state + persist
+    router.push("/auth/login");
+  };
+
+  if (!mounted) return null;
 
   return (
-    <header className="bg-[var(--background)]/90 shadow-sm relative w-full z-50">
-      <div className="w-full max-w-screen-2xl mx-auto px-5 sm:px-6 lg:px-14 py-4 flex items-center gap-3">
+    <header className="bg-white shadow-sm w-full z-50">
+      <div className="max-w-screen-2xl mx-auto px-5 lg:px-14 py-4 flex items-center gap-3">
+        {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <Image src="/Logo.png" alt="Logo" width={150} height={150} />
+          <Image src="/Logo.png" alt="Logo" width={140} height={140} />
         </Link>
 
+        {/* Navigation */}
         <nav className="hidden md:flex flex-1 justify-center space-x-6 text-base">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={`transition text-[var(--primary)] ${
-                isActive(item.href) ? "font-bold" : "font-medium"
+              className={`transition ${
+                isActive(item.href)
+                  ? "text-[var(--primary)] font-bold"
+                  : "text-gray-700 font-medium"
               }`}
             >
               {item.label}
@@ -93,107 +116,63 @@ export default function Header() {
           ))}
         </nav>
 
+        {/* Right */}
         <div className="flex items-center gap-3 ml-auto">
           {!isLoggedIn && (
-            <div className="hidden md:block">
-              <Link href="/auth/login">
-                <Button variant="outline-primary">Đăng nhập / Đăng ký</Button>
-              </Link>
-            </div>
+            <Link href="/auth/login">
+              <Button variant="outline-primary">Đăng nhập / Đăng ký</Button>
+            </Link>
           )}
 
           {isLoggedIn && (
-            <>
-              <Link href="/user/post-blog" className="hidden md:block">
-                <Button variant="primary" className="text-xs sm:text-sm px-3 sm:px-4 py-1.5 h-fit rounded-none">
-                  Đăng bài
-                </Button>
-              </Link>
-
-              <div
-                className="relative hidden md:flex items-center gap-2 cursor-pointer"
-                ref={avatarRef}
-                onClick={() => setAvatarOpen((v) => !v)}
-              >
-                <Image src={avatarUrl} alt="Avatar" width={30} height={30} className="rounded-xl object-contain" />
-                <span className="text-[var(--foreground)] font-inter">{firstName}</span>
-                <ChevronDown className="text-gray-500" size={14} />
-                {avatarOpen && (
-                  <div className="absolute right-0 top-[110%] w-44 bg-white rounded-xl shadow-lg py-1 border border-gray-100">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleLogout();
-                        setAvatarOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-m text-[var(--primary)] hover:bg-gray-50 rounded-xl"
-                    >
-                      Đăng xuất
-                    </button>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          <div className="relative md:hidden" ref={mobileMenuRef}>
-            <button
-              onClick={() => setMobileMenuOpen((v) => !v)}
-              aria-label="Mở menu"
-              className="w-9 h-9 flex items-center justify-center border border-gray-300 rounded-full"
+            <div
+              ref={avatarRef}
+              className="relative flex items-center gap-2 cursor-pointer"
+              onClick={() => setAvatarOpen((v) => !v)}
             >
-              <MoreHorizontal size={20} className="text-gray-600" />
-            </button>
+              <Image
+                src={avatarUrl}
+                alt="Avatar"
+                width={32}
+                height={32}
+                className="rounded-full object-cover"
+              />
+              <span className="text-gray-800 font-medium">{firstName}</span>
+              <ChevronDown size={16} className="text-gray-500" />
 
-            {mobileMenuOpen && (
-              <div className="fixed top-[68px] left-0 w-full bg-white border-t border-gray-200 shadow-lg z-50">
-                <div className="flex flex-col py-2">
-                  {navItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`px-4 py-3 hover:bg-gray-100 ${
-                        isActive(item.href) ? "text-[var(--primary)] font-semibold" : "text-[var(--primary)]"
-                      }`}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
+              {avatarOpen && (
+                <div className="absolute right-0 top-[110%] w-60 bg-white rounded-lg shadow-lg border z-50">
+                  <div className="p-4 border-b bg-gray-50">
+                    <p className="font-bold">{firstName}</p>
+                    <p className="text-xs text-yellow-600">
+                      Thành viên {memberStatus}
+                    </p>
+                  </div>
 
-                  {isLoggedIn && (
-                    <Link
-                      href="/user/post-blog"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="px-4 py-3 hover:bg-gray-100 text-[var(--primary)]"
-                    >
-                      Đăng bài
-                    </Link>
-                  )}
+                  <nav className="flex flex-col py-2">
+                    {dropdownItems.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setAvatarOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-100"
+                      >
+                        <item.icon size={18} />
+                        {item.name}
+                      </Link>
+                    ))}
 
-                  <div className="border-t border-gray-200 my-2" />
-
-                  {!isLoggedIn ? (
-                    <Link href="/auth/login" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3">
-                      <Button variant="outline-primary" className="w-full">
-                        Đăng nhập / Đăng ký
-                      </Button>
-                    </Link>
-                  ) : (
                     <button
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        handleLogout();
-                      }}
-                      className="w-full text-left px-4 py-3 text-[var(--primary)] hover:bg-gray-100"
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-gray-100 border-t"
                     >
-                      Đăng xuất
+                      <LogOut size={18} /> Đăng xuất
                     </button>
-                  )}
+                  </nav>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </header>

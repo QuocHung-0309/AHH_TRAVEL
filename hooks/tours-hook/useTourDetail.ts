@@ -1,6 +1,6 @@
 // hooks/tours-hook/useTourDetail.ts
 import { useQuery } from "@tanstack/react-query";
-import { getTourById, type TourDetail } from "../../apis/tours/tour";
+import { getTourById, type TourDetail } from "#/src/lib/tours/tour";
 
 /** Hook chính lấy chi tiết tour theo id */
 export const useGetTourById = (id?: string | number) =>

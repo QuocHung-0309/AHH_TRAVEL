@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
 import React, { useEffect, useState } from "react";
 import BlogCard from "./BlogCard";
-import { blogApi } from "@/lib/blog/blogApi";
+import { getBlogs } from "@/lib/blog/blogApi";
 import { Post } from "@/types/blog";
 import { mapBlogToPost } from "@/lib/blog/mapBlogToPost";
 import { MdNavigateBefore, MdNavigateNext } from "react-icons/md";
@@ -26,7 +26,11 @@ const BlogListSection = ({ activeCategoryKey }: BlogListSectionProps) => {
   useEffect(() => {
     async function fetchBlogs(page: number) {
       try {
-        const res = await blogApi.getBlogs({ page, limit: PAGE_SIZE, status: "approved" });
+        const res = await getBlogs({
+          page,
+          limit: PAGE_SIZE,
+          status: "approved",
+        });
 
         let blogs: Post[] = res.data
           .filter((b: any) => b.status === "approved")
@@ -74,7 +78,9 @@ const BlogListSection = ({ activeCategoryKey }: BlogListSectionProps) => {
         </span>
         <button
           className="cursor-pointer text-xl disabled:opacity-30"
-          onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+          onClick={() =>
+            setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+          }
           disabled={currentPage === totalPages}
         >
           <MdNavigateNext size={24} />

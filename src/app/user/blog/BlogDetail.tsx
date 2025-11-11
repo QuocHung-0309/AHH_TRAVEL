@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { Post } from '@/types/blog';
 import { mapBlogToPost } from '@/lib/blog/mapBlogToPost';
 import Button from '@/components/ui/Button';
-import { blogApi } from '@/lib/blog/blogApi';
+import { likeBlog } from '@/lib/blog/blogApi';
 
 type BlogDetailProps = {
   post: any;
@@ -32,7 +32,7 @@ export default function BlogDetail({ post }: BlogDetailProps) {
 
   const toggleLike = async () => {
     try {
-      const updatedBlog = await blogApi.likeBlog(post.id);
+      const updatedBlog = await likeBlog(post.id);
       setLikeCount(updatedBlog.totalLikes);
       if (currentUserId) {
         setLiked(updatedBlog.likeBy.includes(currentUserId));

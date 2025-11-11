@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import RecentPostCard from "./RecentPostCard";
-import { blogApi } from "@/lib/blog/blogApi";
+import { getBlogs } from "@/lib/blog/blogApi";
 import { Post } from "@/types/blog";
 import { mapBlogToPost } from "@/lib/blog/mapBlogToPost";
 
@@ -12,7 +12,7 @@ const RecentPosts = () => {
   useEffect(() => {
     async function fetchBlogs() {
       try {
-        const res = await blogApi.getBlogs({ limit: 5, sort: "-createdAt", status: "approved" });
+        const res = await getBlogs({ limit: 5, sort: "-createdAt", status: "approved" });
         const approvedPosts = res.data
           .filter((b: any) => b.status === "approved")
           .map(mapBlogToPost);

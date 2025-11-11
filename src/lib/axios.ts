@@ -1,10 +1,8 @@
-import axios from 'axios';
+// src/lib/axios.ts
+import axios from "axios";
 
-const instance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+export const http = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/,"") + "/api",
+  withCredentials: false,
+  timeout: 15000,
 });
-
-export default instance;
